@@ -71,6 +71,10 @@ jQuery(document).ready(function ($) {
     const lotId = $form.find("#lot_id").val();
     const checkIn = $form.find("#check_in").val();
     const checkOut = $form.find("#check_out").val();
+    const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
+    const nights = Math.ceil( 
+      (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
+    );
     if (lotId && checkIn && checkOut) {
       $.ajax({
         url: rvbs_gantt.ajax_url,
@@ -88,8 +92,18 @@ jQuery(document).ready(function ($) {
           if (response.success) {
             $message.html('<span style="color:green;">Available</span>');
             $submit.prop("disabled", false);
+            $("label[for='total_price']").text(
+              `Total Price : $${price} * ${nights}  `
+            );
+
           } else {
             $message.html('<span style="color:red;">' + response.data + "</span>");
+            // add the total price to the message label
+           
+            $("label[for='total_price']").text(
+              `Total Price : $${price} * ${nights}  `
+            );
+
             // $submit.prop("disabled", true);
           }
         },
@@ -104,6 +118,23 @@ jQuery(document).ready(function ($) {
     } else {
       $("#availability-message").empty();
       // $form.find('button[type="submit"]').prop("disabled", true);
+      // check if any lotid is not selected and show a message under the input field
+      if (!lotId) {
+        $("#lot_id").addClass("error");
+        $("#lot_id").next(".error-message").remove();
+        $("#lot_id").after('<span class="error-message" style="color:red;">Please select a lot</span>');
+      } else {
+        $("#lot_id").removeClass("error");
+        $("#lot_id").next(".error-message").remove();
+      }
+      if (!checkIn) {
+        $("#check_in").addClass("error");
+        $("#check_in").next(".error-message").remove();
+        $("#check_in").after('<span class="error-message" style="color:red;">Please select a check-in date</span>');
+      } else {
+        $("#check_in").removeClass("error");
+        $("#check_in").next(".error-message").remove();
+      }
     }
   }
 
