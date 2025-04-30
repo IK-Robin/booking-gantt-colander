@@ -272,6 +272,9 @@ jQuery(document).ready(function ($) {
         } else {
           resultsDiv.hide();
           $("#new-user-fields").show();
+          // empty the user id field and show a message under the input field
+          $("#user_id").val("");
+          
         }
       },
       error: function (xhr, status, error) {
