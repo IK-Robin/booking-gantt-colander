@@ -1,0 +1,259 @@
+.rvbs-gantt {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 20px;
+}
+
+.calendar-navigation {
+    margin-bottom: 20px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+
+.calendar-navigation button {
+    padding: 8px 16px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+
+.calendar-navigation button:hover {
+    background: #0056b3;
+}
+
+.current-month {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.rvbs-gantt-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.rvbs-gantt-table th,
+.rvbs-gantt-table td {
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    text-align: center;
+    width: 100px;
+    font-size: 14px;
+}
+
+.rvbs-gantt-table th {
+    background-color: #f4f4f4;
+    font-weight: 600;
+    color: #333;
+}
+
+.day-cell {
+    position: relative;
+    height: 50px;
+    cursor: pointer;
+}
+
+.booked {
+    height: 100%;
+    position: absolute;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.booked.pre-booking.status-pending {
+    background-color: #add8e6; /* Light blue for pending pre-booking */
+}
+
+.booked.pre-booking.status-confirmed {
+    background-color: #90ee90; /* Light green for confirmed pre-booking */
+}
+
+.booked.pre-booking.status-cancelled {
+    background-color: #ff6347; /* Light red (tomato) for cancelled pre-booking */
+}
+
+.booked.check-in {
+    border-left: 3px solid #00ff00; /* Green vertical line for check-in */
+}
+
+.booked.check-out {
+    border-right: 3px solid #ff0000; /* Red vertical line for check-out */
+}
+
+.booked .booking-dates {
+    background: rgba(0,0,0,0.7);
+    padding: 2px 6px;
+    font-size: 10px;
+}
+
+.booked.expired {
+    background-color: #d3d3d3 !important; /* Light gray for expired bookings */
+    color: #666 !important; /* Darker gray text for contrast */
+    opacity: 0.8;
+}
+
+.status-pending {
+    background-color: #0000ff; /* Blue */
+}
+
+.status-confirmed {
+    background-color: #008000; /* Green */
+}
+
+.status-cancelled {
+    background-color: #ff0000; /* Red */
+}
+
+.unavailable {
+    background-color: #d3d3d3; /* Light gray */
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #666;
+}
+
+.tooltip {
+    visibility: hidden;
+    background: #333;
+    color: #fff;
+    text-align: left;
+    padding: 10px;
+    position: absolute;
+    z-index: 100;
+    top: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.booked:hover .tooltip {
+    visibility: visible;
+}
+
+#booking-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #fff;
+    padding: 25px;
+    width: 450px;
+    max-width: 95%;
+}
+
+.modal-content h2 {
+    margin: 0 0 20px;
+    font-size: 20px;
+    color: #333;
+}
+
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content label {
+    margin: 12px 0 6px;
+    font-weight: 600;
+    color: #333;
+}
+
+.modal-content input,
+.modal-content select {
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+
+.modal-content button {
+    padding: 12px;
+    margin: 8px 0;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.modal-content button[type="submit"] {
+    background: #28a745;
+    color: #fff;
+}
+
+.modal-content button[type="submit"]:hover {
+    background: #218838;
+}
+
+.modal-content #cancel-booking {
+    background: #dc3545;
+    color: #fff;
+}
+
+.modal-content #cancel-booking:hover {
+    background: #c82333;
+}
+
+.modal-content #close-modal {
+    background: #6c757d;
+    color: #fff;
+}
+
+.modal-content #close-modal:hover {
+    background: #5a6268;
+}
+
+@media (max-width: 768px) {
+    .rvbs-gantt {
+        padding: 10px;
+    }
+
+    .rvbs-gantt-table th,
+    .rvbs-gantt-table td {
+        padding: 4px;
+        font-size: 12px;
+        width: 60px;
+    }
+
+    .day-cell {
+        height: 40px;
+    }
+
+    .booked {
+        font-size: 10px;
+    }
+
+    .modal-content {
+        width: 90%;
+        padding: 15px;
+    }
+}
+.booked.previous-period {
+    background-color: #d3d3d3 !important; /* Gray for previous period */
+    color: #666 !important; /* Darker gray text for contrast */
+}

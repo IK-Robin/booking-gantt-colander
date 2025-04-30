@@ -1,0 +1,59 @@
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: #f4f4f4;
+  }
+  
+  h2 {
+    margin-bottom: 20px;
+  }
+  
+  #calendar-header, .calendar-row {
+    display: flex;
+    align-items: center;
+  }
+  
+  .label-col {
+    width: 100px;
+    font-weight: bold;
+    padding: 5px;
+    background: #eee;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    text-align: right;
+  }
+  
+  .calendar-cell {
+    width: 40px;
+    height: 40px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  
+  .header-cell {
+    background: #ddd;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  
+  .row-cells {
+    display: flex;
+    position: relative;
+  }
+  
+  .booking-bar {
+    position: absolute;
+    top: 5px;
+    height: 30px;
+    background: #4CAF50;
+    color: white;
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
