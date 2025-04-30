@@ -394,7 +394,32 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_error('Selected dates are not available.');
         }
 
+        // check all inpute file is valid 
 
+        if (!$lot_id || !$user_id || !$check_in || !$check_out || !$total_price) {
+            wp_send_json_error('Invalid input data.');
+            // show whis input is not valid liike lot id user or anything
+
+    //    check oneby one 
+    
+            if (!$lot_id) {
+                wp_send_json_error('Lot ID is required.');
+            }
+            if (!$user_id) {
+                wp_send_json_error('User ID is required.');
+            }
+            if (!$check_in) {
+                wp_send_json_error('Check-in date is required.');
+            }
+            if (!$check_out) {
+                wp_send_json_error('Check-out date is required.');
+            }
+            if (!$total_price) {
+                wp_send_json_error('Total price is required.');
+            }
+            return;
+           
+        }
 
         $wpdb->insert(
             "{$wpdb->prefix}rvbs_bookings",
