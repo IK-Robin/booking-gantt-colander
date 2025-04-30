@@ -153,7 +153,7 @@ jQuery(document).ready(function ($) {
   });
 
 
-  // Save booking
+  // Save booking or submit a new booking
   $("#booking-form").on("submit", function (e) {
     e.preventDefault();
     const bookingId = $("#booking_id").val();
