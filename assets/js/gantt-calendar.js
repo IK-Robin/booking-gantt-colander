@@ -258,6 +258,7 @@ data.user_email = user_email;
         if (response.success) {
           alert(response.data);
           $("#booking-modal").hide();
+          $("#new-user-fields").hide();
           const month = $(".prev-month").data("month") + 1;
           const year = $(".prev-month").data("year");
           loadCalendar(month, year);
