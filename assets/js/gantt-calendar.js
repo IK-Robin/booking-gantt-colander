@@ -1,5 +1,7 @@
 jQuery(document).ready(function ($) {
   // Helper function to generate random color
+
+  let user_not_found = false;
   function getRandomColor() {
     const letters = "0123456789ABCDEF";
     let color = "#";
@@ -201,6 +203,61 @@ jQuery(document).ready(function ($) {
       nonce: rvbs_gantt.nonce,
     };
 
+
+// check if a user is empity and not found in the user db then add a new user to the db and store the user id in the user id field
+    
+if(user_not_found){
+// get the user name and email from the input fields
+console.log("user not found")
+const user_name = $("#new_user_name").val();
+const user_email = $("#new_user_email").val();
+user_id = 0;
+// check if the user name and email are not empty
+
+if(user_name && user_email){
+  // add the user to the db and get the user id and store it in the user id field
+  $.ajax({
+    url: rvbs_gantt.ajax_url,
+    type: "POST",
+    data: {
+      action: "rvbs_add_user",
+      user_name: user_name,
+      user_email: user_email,
+      nonce: rvbs_gantt.nonce,
+    },
+    success: function (response) {
+      if (response.success) {
+        // store the user id in the user id field
+        $("#user_id").val(response.data.user_id);
+        // hide the new user fields
+        $("#new-user-fields").hide();
+        // remove the error class from the input field
+        $("#user_id").removeClass("error");
+        $("#user_id").next(".error-message").remove();
+      } else {
+        alert(response.data);
+      }
+    },
+    error: function (xhr, status, error) {
+      console.log("Add user error:", xhr, status, error);
+      alert("Error adding user");
+    },
+  });
+} else {
+  // show a message under the input field if the user name or email is empty
+  $("#new_user_name").addClass("error");
+  $("#new_user_name").next(".error-message").remove();
+  $("#new_user_name").after('<span class="error-message" style="color:red;">This field is required</span>');
+  $("#new_user_email").addClass("error");
+  $("#new_user_email").next(".error-message").remove();
+  $("#new_user_email").after('<span class="error-message" style="color:red;">This field is required</span>');
+  // return if the user name or email is empty and not submit the form
+  return;
+}
+
+// close 
+}
+
 // check all required fields are filled and show a message if the input fild is empty and the message should be under the input field
     
     const requiredFields = ["#lot_id", "#user_id", "#check_in", "#check_out", ];
@@ -274,7 +331,12 @@ jQuery(document).ready(function ($) {
           $("#new-user-fields").show();
           // empty the user id field and show a message under the input field
           $("#user_id").val("");
+          if($("#user_id").val(0)){
+            user_not_found = true;
+
+          }
           
+
         }
       },
       error: function (xhr, status, error) {

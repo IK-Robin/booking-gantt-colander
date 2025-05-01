@@ -396,6 +396,9 @@ class RV_Gantt_Booking_Calendar
 
         // check all inpute file is valid 
 
+        // create the user if not exist 
+        
+
         if (!$lot_id || !$user_id || !$check_in || !$check_out || !$total_price) {
             wp_send_json_error('Invalid input data.');
             // show whis input is not valid liike lot id user or anything
