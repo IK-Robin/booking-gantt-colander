@@ -215,7 +215,7 @@ class RV_Gantt_Booking_Calendar
                             <label for="total_price">Total Price:</label>
                             <input type="number" step="0.01" name="total_price" id="total_price" readonly>
                             <div id="availability-message"></div>
-                            <button type="submit" >Save Booking</button>
+                            <button type="submit">Save Booking</button>
                             <button type="button" id="close-modal">Close</button>
                         </form>
                     </div>
@@ -367,18 +367,95 @@ class RV_Gantt_Booking_Calendar
     {
         check_ajax_referer('rvbs_gantt_nonce', 'nonce');
         global $wpdb;
-
+    
+        // Sanitize and validate inputs
         $lot_id = intval($_POST['lot_id']);
         $user_id = intval($_POST['user_id']);
         $check_in = sanitize_text_field($_POST['check_in']);
         $check_out = sanitize_text_field($_POST['check_out']);
         $total_price = floatval($_POST['total_price']);
-        $status = sanitize_text_field($_POST['status']);
+        $status = sanitize_text_field($_POST['status']) ?: 'pending';
+        
         $post_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}rvbs_rv_lots WHERE post_id = %d", $lot_id));
 
+    
+        // Validate inputs
+        if (!$lot_id) {
+            wp_send_json_error('Lot ID is required.');
+        }
+        if (!$check_in || !DateTime::createFromFormat('Y-m-d', $check_in)) {
+            wp_send_json_error('Valid check-in date is required.');
+        }
+        if (!$check_out || !DateTime::createFromFormat('Y-m-d', $check_out)) {
+            wp_send_json_error('Valid check-out date is required.');
+        }
+        if ($check_out <= $check_in) {
+            wp_send_json_error('Check-out date must be after check-in date.');
+        }
+        if (!$total_price) {
+            wp_send_json_error('Total price is required.');
+        }
+    
+        // Check lot existence and availability
+        $table_lots = $wpdb->prefix . 'rvbs_rv_lots';
+        $lot = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, post_id 
+             FROM $table_lots 
+             WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
+            $lot_id
+        ));
+    
+        if (!$lot) {
+            wp_send_json_error('Lot is not available or does not exist.');
+        }
+    
+        // Create new user if user_id == 0
+        if ($user_id == 0) {
+            $new_user_name = sanitize_text_field($_POST['user_name']);
+            $new_user_email = sanitize_email($_POST['user_email']);
+    
+            if (!$new_user_name) {
+                wp_send_json_error('User name is required for new user.');
+            }
+            if (!$new_user_email || !is_email($new_user_email)) {
+                wp_send_json_error('Valid email address is required for new user.');
+            }
+    
+            // Check if email already exists
+            if (email_exists($new_user_email)) {
+                wp_send_json_error('Email address is already registered.');
+            }
+    
+            $password = wp_generate_password(12, true);
+            $user_id = wp_create_user($new_user_email, $password, $new_user_email);
+    
+            if (is_wp_error($user_id)) {
+                wp_send_json_error('Error creating user: ' . $user_id->get_error_message());
+            }
+    
+            // Update user display name
+            wp_update_user([
+                'ID' => $user_id,
+                'display_name' => $new_user_name,
+                'role' => 'subscriber',
+            ]);
+    
+            // Send welcome email
+            wp_new_user_notification($user_id, null, 'both');
+        }
+    
+        if (!$user_id || !get_user_by('ID', $user_id)) {
+            wp_send_json_error('Valid user ID is required.');
+        }
+    
+        // Validate total price
+    
         // Check availability
-        $conflict = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}rvbs_bookings 
+        $table_bookings = $wpdb->prefix . 'rvbs_bookings';
+        // Check availability
+         // Check availability
+         $conflict = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_bookings 
              WHERE lot_id = %d AND (
                  (check_in <= %s AND check_out >= %s) OR 
                  (check_in <= %s AND check_out >= %s)
@@ -394,10 +471,6 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_error('Selected dates are not available.');
         }
 
-        // check all inpute file is valid 
-
-        // create the user if not exist 
-        
 
         if (!$lot_id || !$user_id || !$check_in || !$check_out || !$total_price) {
             wp_send_json_error('Invalid input data.');
@@ -424,6 +497,8 @@ class RV_Gantt_Booking_Calendar
            
         }
 
+
+        // Insert booking
         $wpdb->insert(
             "{$wpdb->prefix}rvbs_bookings",
             array(
@@ -443,8 +518,9 @@ class RV_Gantt_Booking_Calendar
         } else {
             wp_send_json_success('Booking added successfully');
         }
+    
+        
     }
-
 
 
 
