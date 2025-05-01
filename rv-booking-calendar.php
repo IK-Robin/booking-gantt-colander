@@ -375,9 +375,8 @@ class RV_Gantt_Booking_Calendar
         $check_out = sanitize_text_field($_POST['check_out']);
         $total_price = floatval($_POST['total_price']);
         $status = sanitize_text_field($_POST['status']) ?: 'pending';
-        
+    
         $post_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}rvbs_rv_lots WHERE post_id = %d", $lot_id));
-
     
         // Validate inputs
         if (!$lot_id) {
@@ -404,12 +403,13 @@ class RV_Gantt_Booking_Calendar
              WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
             $lot_id
         ));
-    // if lot not found or not available then return error
+        // if lot not found or not available then return error
         if (!$lot) {
             wp_send_json_error('Lot is not available or does not exist.');
         }
     
         // Create new user if user_id == 0
+        $user_email = '';
         if ($user_id == 0) {
             $new_user_name = sanitize_text_field($_POST['user_name']);
             $new_user_email = sanitize_email($_POST['user_email']);
@@ -440,21 +440,41 @@ class RV_Gantt_Booking_Calendar
                 'role' => 'subscriber',
             ]);
     
-            // Send welcome email
-            wp_new_user_notification($user_id, null, 'both');
+            $user_email = $new_user_email;
+    
+            // Send welcome email with login details
+            $site_name = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
+            $login_url = wp_login_url();
+            $dashboard_url = home_url('/user-dashboard');
+            $welcome_message = sprintf(__('Welcome to %s!'), $site_name) . "\r\n\r\n";
+            $welcome_message .= sprintf(__('Username: %s'), $new_user_email) . "\r\n";
+            $welcome_message .= sprintf(__('Password: %s'), $password) . "\r\n\r\n";
+            $welcome_message .= __('Log in here: ') . $login_url . "\r\n";
+            $welcome_message .= __('View your bookings: ') . $dashboard_url . "\r\n\r\n";
+            $welcome_message .= __('As a subscriber, you can manage your bookings from your dashboard.') . "\r\n";
+            wp_mail($new_user_email, sprintf(__('[%s] Your Account Created'), $site_name), $welcome_message);
+    
+            // Notify admin
+            $admin_message = sprintf(__('New user registration on %s:'), $site_name) . "\r\n\r\n";
+            $admin_message .= sprintf(__('Username: %s'), $new_user_email) . "\r\n";
+            $admin_message .= sprintf(__('Email: %s'), $new_user_email) . "\r\n";
+            wp_mail(get_option('admin_email'), sprintf(__('[%s] New User Registration'), $site_name), $admin_message);
+        } else {
+            $user = get_user_by('ID', $user_id);
+            if ($user) {
+                $user_email = $user->user_email;
+            }
         }
     
-        if (!$user_id || !get_user_by('ID', $user_id)) {
+        if (!$user_id || !$user_email) {
             wp_send_json_error('Valid user ID is required.');
         }
-    
-        // Validate total price
     
         // Check availability
         $table_bookings = $wpdb->prefix . 'rvbs_bookings';
         // Check availability
-         // Check availability
-         $conflict = $wpdb->get_var($wpdb->prepare(
+        // Check availability
+        $conflict = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table_bookings 
              WHERE lot_id = %d AND (
                  (check_in <= %s AND check_out >= %s) OR 
@@ -466,18 +486,17 @@ class RV_Gantt_Booking_Calendar
             $check_in,
             $check_out
         ));
-
+    
         if ($conflict > 0) {
             wp_send_json_error('Selected dates are not available.');
         }
-
-
+    
         // Check if any of the required fields are empty or invalid
         if (!$lot_id || !$user_id || !$check_in || !$check_out || !$total_price) {
             wp_send_json_error('Invalid input data.');
             // show whis input is not valid liike lot id user or anything
-
-    //    check oneby one 
+    
+            //    check oneby one 
     
             if (!$lot_id) {
                 wp_send_json_error('Lot ID is required.');
@@ -494,11 +513,8 @@ class RV_Gantt_Booking_Calendar
             if (!$total_price) {
                 wp_send_json_error('Total price is required.');
             }
-            return;
-           
         }
-
-
+    
         // Insert booking
         $wpdb->insert(
             "{$wpdb->prefix}rvbs_bookings",
@@ -513,14 +529,26 @@ class RV_Gantt_Booking_Calendar
             ),
             array('%d', '%d', '%d', '%s', '%s', '%f', '%s')
         );
-
+    
         if ($wpdb->last_error) {
             wp_send_json_error('Error adding booking: ' . $wpdb->last_error);
-        } else {
-            wp_send_json_success('Booking added successfully');
         }
     
-        
+        // Send booking confirmation email
+        $site_name = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
+        $booking_message = sprintf(__('Dear %s,'), $user_id == 0 ? sanitize_text_field($_POST['user_name']) : get_userdata($user_id)->display_name) . "\r\n\r\n";
+        $booking_message .= __('Your booking has been successfully created!') . "\r\n\r\n";
+        $booking_message .= __('Booking Details:') . "\r\n";
+        $booking_message .= sprintf(__('Lot ID: %s'), $lot_id) . "\r\n";
+        $booking_message .= sprintf(__('Check-In: %s'), $check_in) . "\r\n";
+        $booking_message .= sprintf(__('Check-Out: %s'), $check_out) . "\r\n";
+        $booking_message .= sprintf(__('Total Price: $%s'), number_format($total_price, 2)) . "\r\n";
+        $booking_message .= sprintf(__('Status: %s'), ucfirst($status)) . "\r\n\r\n";
+        $booking_message .= __('View your bookings: ') . home_url('/user-dashboard') . "\r\n\r\n";
+        $booking_message .= sprintf(__('Thank you for choosing %s!'), $site_name) . "\r\n";
+        wp_mail($user_email, sprintf(__('[%s] Booking Confirmation'), $site_name), $booking_message);
+    
+        wp_send_json_success('Booking added successfully');
     }
 
 
