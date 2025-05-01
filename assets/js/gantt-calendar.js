@@ -191,7 +191,7 @@ jQuery(document).ready(function ($) {
     e.preventDefault();
     const bookingId = $("#booking_id").val();
     const action = bookingId ? "rvbs_update_booking" : "rvbs_add_booking";
-    const data = {
+    let data = {
       action: action,
       booking_id: bookingId,
       lot_id: $("#lot_id").val(),
@@ -213,47 +213,16 @@ const user_name = $("#new_user_name").val();
 const user_email = $("#new_user_email").val();
 user_id = 0;
 // check if the user name and email are not empty
-
+ 
 if(user_name && user_email){
-  // add the user to the db and get the user id and store it in the user id field
-  $.ajax({
-    url: rvbs_gantt.ajax_url,
-    type: "POST",
-    data: {
-      action: "rvbs_add_user",
-      user_name: user_name,
-      user_email: user_email,
-      nonce: rvbs_gantt.nonce,
-    },
-    success: function (response) {
-      if (response.success) {
-        // store the user id in the user id field
-        $("#user_id").val(response.data.user_id);
-        // hide the new user fields
-        $("#new-user-fields").hide();
-        // remove the error class from the input field
-        $("#user_id").removeClass("error");
-        $("#user_id").next(".error-message").remove();
-      } else {
-        alert(response.data);
-      }
-    },
-    error: function (xhr, status, error) {
-      console.log("Add user error:", xhr, status, error);
-      alert("Error adding user");
-    },
-  });
-} else {
-  // show a message under the input field if the user name or email is empty
-  $("#new_user_name").addClass("error");
-  $("#new_user_name").next(".error-message").remove();
-  $("#new_user_name").after('<span class="error-message" style="color:red;">This field is required</span>');
-  $("#new_user_email").addClass("error");
-  $("#new_user_email").next(".error-message").remove();
-  $("#new_user_email").after('<span class="error-message" style="color:red;">This field is required</span>');
-  // return if the user name or email is empty and not submit the form
-  return;
+   
+
+// add the user to the data array and send the data to the server
+data.user_name = user_name;
+data.user_email = user_email;
+
 }
+
 
 // close 
 }
