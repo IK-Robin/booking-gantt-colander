@@ -404,7 +404,7 @@ class RV_Gantt_Booking_Calendar
              WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
             $lot_id
         ));
-    
+    // if lot not found or not available then return error
         if (!$lot) {
             wp_send_json_error('Lot is not available or does not exist.');
         }
@@ -472,6 +472,7 @@ class RV_Gantt_Booking_Calendar
         }
 
 
+        // Check if any of the required fields are empty or invalid
         if (!$lot_id || !$user_id || !$check_in || !$check_out || !$total_price) {
             wp_send_json_error('Invalid input data.');
             // show whis input is not valid liike lot id user or anything
