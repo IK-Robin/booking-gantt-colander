@@ -5,3 +5,5 @@ this code work only on the plugin rv-booking-system plugin and use three databas
 
 
 4. input search: if no user find in the user input fild then add a new user when submiting the form and stor the user in wp_rvbs_bookings table 
+
+5. after createing the user and make a booking form the admin then should be send an email with the password and the user name to the user and send the login url as a subscriber 
