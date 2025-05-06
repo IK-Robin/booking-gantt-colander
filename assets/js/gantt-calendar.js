@@ -359,12 +359,15 @@ data.user_email = user_email;
   // Edit booking
   $(document).on("click", ".booked", function () {
     const bookingId = $(this).data("booking-id");
+    const booking_post_id = $(this).data("booking-post-id");
+    console.log("Booking ID:", bookingId,'Booking Post ID:', booking_post_id);
     $.ajax({
       url: rvbs_gantt.ajax_url,
       type: "POST",
       data: {
         action: "rvbs_get_booking",
         booking_id: bookingId,
+        booking_post_id: booking_post_id,
         nonce: rvbs_gantt.nonce,
       },
       success: function (response) {
@@ -426,6 +429,7 @@ data.user_email = user_email;
       },
       success: function (response) {
         if (response.success) {
+          console.log(response)
           renderCalendarGrid(response.data.calendar_data);
           $(".current-month").text(response.data.month_display);
           $(".prev-month")
@@ -506,6 +510,7 @@ data.user_email = user_email;
         });
 
         bookingsForDay.forEach((booking) => {
+        
           if (day === booking.start_day) {
             const today = new Date();
             const todayDate = today.getDate();
@@ -556,6 +561,7 @@ data.user_email = user_email;
                   `<div class="booked${isCheckIn}${isCheckOut}${isExpiredClass}"></div>`
                 )
                   .attr("data-booking-id", booking.id)
+                  .attr("data-booking-post-id", booking.post_id)
                   .attr("data-start-day", booking.start_day)
                   .attr("data-end-day", booking.end_day)
                   .css("width", `${remainingWidth}px`)
