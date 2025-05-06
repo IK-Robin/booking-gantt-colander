@@ -302,6 +302,8 @@ class RV_Gantt_Booking_Calendar
                     $lot_data['bookings'][] = [
                         'id' => $booking->id,
                         'user_id' => $booking->user_id,
+                        'post_id' => $booking->post_id,
+                        'lot_id' => $booking->lot_id,
                         'check_in' => $booking->check_in,
                         'check_out' => $booking->check_out,
                         'total_price' => number_format($booking->total_price, 2),
@@ -630,6 +632,7 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_success('Booking cancelled successfully');
         }
     }
+// Function to get booking details on click the booking block in the calendar
 
     public function get_booking()
     {
@@ -637,13 +640,16 @@ class RV_Gantt_Booking_Calendar
         global $wpdb;
 
         $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
-        if (!$booking_id) {
+        $booking_post_id = isset($_POST['booking_post_id']) ? intval($_POST['booking_post_id']) : 0;
+
+        if (!$booking_id && !$booking_post_id) {
             wp_send_json_error('Invalid booking ID');
         }
 
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}rvbs_bookings WHERE id = %d",
-            $booking_id
+            "SELECT * FROM {$wpdb->prefix}rvbs_bookings WHERE id = %d AND post_id = %d",
+            $booking_id,
+            $booking_post_id
         ));
 
         if ($booking) {
