@@ -80,7 +80,7 @@ class RV_Gantt_Booking_Calendar
         wp_enqueue_script('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', array('jquery'), '4.6.13', true);
         wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', array(), '4.6.13');
     }
-
+// check  availability function on add new booking 
     public function check_availability()
     {
         check_ajax_referer('rvbs_gantt_nonce', 'nonce');
@@ -134,6 +134,8 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_success('Dates are available.');
         }
     }
+
+// check availability function on edit booking
   public function check_availability_on_edit() {
     check_ajax_referer('rvbs_gantt_nonce', 'nonce');
     global $wpdb;
@@ -153,7 +155,7 @@ class RV_Gantt_Booking_Calendar
     if (strtotime($check_in) >= strtotime($check_out)) {
         wp_send_json_error('Check-in date must be before check-out date.');
     }
-
+// chek if lot exists and is available
     $lot = $wpdb->get_row($wpdb->prepare(
         "SELECT post_id, is_available, is_trash, deleted_post 
          FROM {$wpdb->prefix}rvbs_rv_lots 
@@ -165,6 +167,7 @@ class RV_Gantt_Booking_Calendar
         wp_send_json_error('Lot is not available or does not exist.');
     }
 
+    // Check for conflicting bookings
     $original_booking = null;
     if ($booking_id) {
         $original_booking = $wpdb->get_row($wpdb->prepare(
@@ -179,12 +182,12 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_error('Booking does not exist or is invalid.');
         }
     }
-
+ 
     $original_check_in = $original_booking ? $original_booking->check_in : null;
     $original_check_out = $original_booking ? $original_booking->check_out : null;
 
     $response = [];
-
+  // Check if the booking is an extension or shortening
     $is_extension = (
         $original_booking &&
         strtotime($check_in) == strtotime($original_check_in) &&
