@@ -1,7 +1,7 @@
 jQuery(document).ready(function ($) {
   // Helper function to generate random color
-let is_edit_booking = false;
-let is_add_new_booking = false;
+  let is_edit_booking = false;
+  let is_add_new_booking = false;
   let user_not_found = false;
   function getRandomColor() {
     const letters = "0123456789ABCDEF";
@@ -50,7 +50,9 @@ let is_add_new_booking = false;
     const checkOut = $form.find("#check_out").val();
 
     if (lotId) {
-      const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
+      const price = $form
+        .find(`#lot_id option[value="${lotId}"]`)
+        .data("price");
       $form.find("#lot_price").val(price ? price.toFixed(2) : "");
 
       if (checkIn && checkOut) {
@@ -59,7 +61,9 @@ let is_add_new_booking = false;
         );
         const totalPrice = price * nights;
         $form.find("#total_price").val(totalPrice.toFixed(2));
-        $("label[for='total_price']").text(`Total Price: $${totalPrice.toFixed(2)}`);
+        $("label[for='total_price']").text(
+          `Total Price: $${totalPrice.toFixed(2)}`
+        );
       } else {
         $form.find("#total_price").val("");
         $("label[for='total_price']").text("Total Price: $0.00");
@@ -79,15 +83,17 @@ let is_add_new_booking = false;
     const checkOut = $form.find("#check_out").val();
     const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
     const booking_id = $form.find("#booking_id").val();
-    const nights = Math.ceil( 
+    const nights = Math.ceil(
       (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
     );
     if (lotId && checkIn && checkOut) {
-      let action='';
-      if(is_add_new_booking){
-        action= "rvbs_check_availability";
-      }else if(is_edit_booking){
-        action= "rvbs_check_availability_edit";
+      let action = "";
+
+      // check the request method is it the add new booking or edit booking
+      if (is_add_new_booking) {
+        action = "rvbs_check_availability";
+      } else if (is_edit_booking) {
+        action = "rvbs_check_availability_edit";
       }
       $.ajax({
         url: rvbs_gantt.ajax_url,
@@ -103,17 +109,36 @@ let is_add_new_booking = false;
         success: function (response) {
           const $message = $("#availability-message");
           const $submit = $form.find('button[type="submit"]');
+
           if (response.success) {
-            $message.html('<span style="color:green;">Available</span>');
-            $submit.prop("disabled", false);
+            if (is_add_new_booking) {
+              console.log($submit);
+              $message.html(`<span style="color:green;"> Available</span>`);
+              $submit.prop("disabled", false);
+            } else if (is_edit_booking) {
+              $message.html(
+                `<span style="color:green;"> ${response.data.message}</span>`
+              );
+              // check the booking status and hide and show the submit button
+              if (
+                response.data.booking_status == "shortened" ||
+                response.data.booking_status == "extended"
+              ) {
+                $submit.prop("disabled", false);
+              } else {
+                $submit.prop("disabled", true);
+              }
+            }
+
             $("label[for='total_price']").text(
               `Total Price : $${price} * ${nights}  `
             );
-
           } else {
-            $message.html('<span style="color:red;">' + response.data + "</span>");
+            $message.html(
+              '<span style="color:red;">' + response.data + "</span>"
+            );
             // add the total price to the message label
-           
+
             $("label[for='total_price']").text(
               `Total Price : $${price} * ${nights}  `
             );
@@ -136,7 +161,9 @@ let is_add_new_booking = false;
       if (!lotId) {
         $("#lot_id").addClass("error");
         $("#lot_id").next(".error-message").remove();
-        $("#lot_id").after('<span class="error-message" style="color:red;">Please select a lot</span>');
+        $("#lot_id").after(
+          '<span class="error-message" style="color:red;">Please select a lot</span>'
+        );
       } else {
         $("#lot_id").removeClass("error");
         $("#lot_id").next(".error-message").remove();
@@ -144,7 +171,9 @@ let is_add_new_booking = false;
       if (!checkIn) {
         $("#check_in").addClass("error");
         $("#check_in").next(".error-message").remove();
-        $("#check_in").after('<span class="error-message" style="color:red;">Please select a check-in date</span>');
+        $("#check_in").after(
+          '<span class="error-message" style="color:red;">Please select a check-in date</span>'
+        );
       } else {
         $("#check_in").removeClass("error");
         $("#check_in").next(".error-message").remove();
@@ -157,7 +186,9 @@ let is_add_new_booking = false;
     const $form = $("#booking-form");
     const lotId = $(this).val();
     if (lotId) {
-      const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
+      const price = $form
+        .find(`#lot_id option[value="${lotId}"]`)
+        .data("price");
       $form.find("#lot_price").val(price ? price.toFixed(2) : "");
     } else {
       $form.find("#lot_price").val("");
@@ -166,8 +197,7 @@ let is_add_new_booking = false;
     checkAvailability();
   });
 
-
-// here i want to hide the allerts message under the input fields when the user click on the input field and remove the error class from the input field
+  // here i want to hide the allerts message under the input fields when the user click on the input field and remove the error class from the input field
   $(".rvbs-date-picker").on("focus", function () {
     $(this).removeClass("error");
     $(this).next(".error-message").remove();
@@ -197,7 +227,6 @@ let is_add_new_booking = false;
     $(this).next(".error-message").remove();
   });
 
-
   // Save booking or submit a new booking
   $("#booking-form").on("submit", function (e) {
     e.preventDefault();
@@ -215,33 +244,28 @@ let is_add_new_booking = false;
       nonce: rvbs_gantt.nonce,
     };
 
+    // check if a user is empity and not found in the user db then add a new user to the db and store the user id in the user id field
 
-// check if a user is empity and not found in the user db then add a new user to the db and store the user id in the user id field
-    
-if(user_not_found){
-// get the user name and email from the input fields
-console.log("user not found")
-const user_name = $("#new_user_name").val();
-const user_email = $("#new_user_email").val();
-user_id = 0;
-// check if the user name and email are not empty
- 
-if(user_name && user_email){
-   
+    if (user_not_found) {
+      // get the user name and email from the input fields
+      console.log("user not found");
+      const user_name = $("#new_user_name").val();
+      const user_email = $("#new_user_email").val();
+      user_id = 0;
+      // check if the user name and email are not empty
 
-// add the user to the data array and send the data to the server
-data.user_name = user_name;
-data.user_email = user_email;
+      if (user_name && user_email) {
+        // add the user to the data array and send the data to the server
+        data.user_name = user_name;
+        data.user_email = user_email;
+      }
 
-}
+      // close
+    }
 
+    // check all required fields are filled and show a message if the input fild is empty and the message should be under the input field
 
-// close 
-}
-
-// check all required fields are filled and show a message if the input fild is empty and the message should be under the input field
-    
-    const requiredFields = ["#lot_id", "#user_id", "#check_in", "#check_out", ];
+    const requiredFields = ["#lot_id", "#user_id", "#check_in", "#check_out"];
     let allFilled = true;
     requiredFields.forEach((field) => {
       const $field = $(field);
@@ -249,9 +273,10 @@ data.user_email = user_email;
         allFilled = false;
         $field.addClass("error");
         $field.next(".error-message").remove();
-        $field.after('<span class="error-message" style="color:red;">This field is required</span>');
+        $field.after(
+          '<span class="error-message" style="color:red;">This field is required</span>'
+        );
         // retun if any field is empty and not submit the form
-        
       } else {
         $field.removeClass("error");
         $field.next(".error-message").remove();
@@ -313,12 +338,9 @@ data.user_email = user_email;
           $("#new-user-fields").show();
           // empty the user id field and show a message under the input field
           $("#user_id").val("");
-          if($("#user_id").val(0)){
+          if ($("#user_id").val(0)) {
             user_not_found = true;
-
           }
-          
-
         }
       },
       error: function (xhr, status, error) {
@@ -372,13 +394,13 @@ data.user_email = user_email;
   $(document).on("click", ".booked", function () {
     const bookingId = $(this).data("booking-id");
     const booking_post_id = $(this).data("booking-post-id");
-    console.log("Booking ID:", bookingId,'Booking Post ID:', booking_post_id);
+    console.log("Booking ID:", bookingId, "Booking Post ID:", booking_post_id);
     is_edit_booking = true;
     is_add_new_booking = false;
 
     //add the id of the of the bookgin id to the booking id field
     $("#booking_id").val(bookingId);
-    
+
     $.ajax({
       url: rvbs_gantt.ajax_url,
       type: "POST",
@@ -391,45 +413,46 @@ data.user_email = user_email;
       success: function (response) {
         if (response.success) {
           const booking = response.data;
-      
+
           $("#booking_id").val(booking.id);
           // Ensure the lot_id is a string for matching
-const lotId = booking.post_id.toString();
+          const lotId = booking.post_id.toString();
 
-// Check if the option exists
-if ($(`#lot_id option[value="${lotId}"]`).length) {
-  $("#lot_id").val(lotId).trigger("change");
-} else {
-  console.warn("Lot ID not found in the dropdown:", lotId);
-}
+          // Check if the option exists
+          if ($(`#lot_id option[value="${lotId}"]`).length) {
+            $("#lot_id").val(lotId).trigger("change");
+          } else {
+            console.warn("Lot ID not found in the dropdown:", lotId);
+          }
 
-     
-      
           $("#user_id").val(booking.user_id);
           //enable user search autocomplete from showing
           $("#user_search").prop("disabled", false);
-          $("#user_search").val(booking.user_name + " (" + booking.user_email + ")");
+          $("#user_search").val(
+            booking.user_name + " (" + booking.user_email + ")"
+          );
           $("#check_in").val(booking.check_in);
           $("#check_out").val(booking.check_out);
           $("#total_price").val(booking.total_price);
           $("#status").val(booking.status);
-      
+
           // Update lot_price based on selected lot
-          const price = $(`#lot_id option[value="${booking.lot_id}"]`).data("price");
+          const price = $(`#lot_id option[value="${booking.lot_id}"]`).data(
+            "price"
+          );
           $("#lot_price").val(price ? price.toFixed(2) : "");
-      
+
           // Update total price label
           $("label[for='total_price']").text(
             `Total Price: $${parseFloat(booking.total_price).toFixed(2)}`
           );
-      
+
           $("#booking-modal").show();
         } else {
           alert("Error loading booking details: " + response.data);
         }
       },
-      
-      
+
       error: function (xhr, status, error) {
         console.log("Edit booking error:", xhr, status, error);
         alert("Error loading booking details");
@@ -438,10 +461,9 @@ if ($(`#lot_id option[value="${lotId}"]`).length) {
   });
 
   // Close edit modal
-$(document).on("click", "#edit-close-modal", function() {
-  $("#booking-modal").hide();
-});
-
+  $(document).on("click", "#edit-close-modal", function () {
+    $("#booking-modal").hide();
+  });
 
   // Navigation
   $(".prev-month, .next-month").on("click", function () {
@@ -474,7 +496,7 @@ $(document).on("click", "#edit-close-modal", function() {
       },
       success: function (response) {
         if (response.success) {
-          console.log(response)
+          console.log(response);
           renderCalendarGrid(response.data.calendar_data);
           $(".current-month").text(response.data.month_display);
           $(".prev-month")
@@ -504,13 +526,23 @@ $(document).on("click", "#edit-close-modal", function() {
       .attr("data-current-year", data.year)
       .attr("data-days-in-month", data.days_in_month);
 
-    const $headerRow = $('<div class="rvbs-gantt-row rvbs-gantt-header"></div>');
-    $headerRow.append('<div class="rvbs-gantt-cell header-cell serial-no">Serial No</div>');
-    $headerRow.append('<div class="rvbs-gantt-cell header-cell rv-lot-title">RV Lot Title</div>');
-    $headerRow.append('<div class="rvbs-gantt-cell header-cell status">Status</div>');
+    const $headerRow = $(
+      '<div class="rvbs-gantt-row rvbs-gantt-header"></div>'
+    );
+    $headerRow.append(
+      '<div class="rvbs-gantt-cell header-cell serial-no">Serial No</div>'
+    );
+    $headerRow.append(
+      '<div class="rvbs-gantt-cell header-cell rv-lot-title">RV Lot Title</div>'
+    );
+    $headerRow.append(
+      '<div class="rvbs-gantt-cell header-cell status">Status</div>'
+    );
 
     data.days.forEach((day) => {
-      const $dayHeader = $('<div class="rvbs-gantt-cell header-cell day-header"></div>')
+      const $dayHeader = $(
+        '<div class="rvbs-gantt-cell header-cell day-header"></div>'
+      )
         .attr("data-day", day.day)
         .text(day.day);
       if (day.is_today) {
@@ -524,15 +556,24 @@ $(document).on("click", "#edit-close-modal", function() {
     data.lots.forEach((lot) => {
       const $row = $('<div class="rvbs-gantt-row"></div>');
       $row.append(`<div class="rvbs-gantt-cell serial-no">${lot.serial}</div>`);
-      $row.append(`<div class="rvbs-gantt-cell rv-lot-title">${lot.title}</div>`);
+      $row.append(
+        `<div class="rvbs-gantt-cell rv-lot-title">${lot.title}</div>`
+      );
 
       const $statusCell = $('<div class="rvbs-gantt-cell status"></div>');
-      const $statusSelect = $('<select class="lot-status"></select>').attr("data-lot-id", lot.id);
-      $statusSelect.append(
-        `<option value="available" ${lot.is_available ? "selected" : ""}>Available</option>`
+      const $statusSelect = $('<select class="lot-status"></select>').attr(
+        "data-lot-id",
+        lot.id
       );
       $statusSelect.append(
-        `<option value="unavailable" ${!lot.is_available ? "selected" : ""}>Unavailable</option>`
+        `<option value="available" ${
+          lot.is_available ? "selected" : ""
+        }>Available</option>`
+      );
+      $statusSelect.append(
+        `<option value="unavailable" ${
+          !lot.is_available ? "selected" : ""
+        }>Unavailable</option>`
       );
       $statusCell.append($statusSelect);
       $row.append($statusCell);
@@ -544,7 +585,9 @@ $(document).on("click", "#edit-close-modal", function() {
           .attr("data-lot-id", lot.id);
 
         if (!lot.is_available) {
-          const $unavailable = $('<div class="unavailable"></div>').text("Unavailable");
+          const $unavailable = $('<div class="unavailable"></div>').text(
+            "Unavailable"
+          );
           $dayCell.append($unavailable);
           $row.append($dayCell);
           continue;
@@ -555,7 +598,6 @@ $(document).on("click", "#edit-close-modal", function() {
         });
 
         bookingsForDay.forEach((booking) => {
-        
           if (day === booking.start_day) {
             const today = new Date();
             const todayDate = today.getDate();
@@ -576,7 +618,8 @@ $(document).on("click", "#edit-close-modal", function() {
                 ? "Expired Today"
                 : booking.is_expired
                 ? "Expired"
-                : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)
+                : booking.status.charAt(0).toUpperCase() +
+                  booking.status.slice(1)
             }`;
 
             const isCheckIn =
@@ -593,7 +636,9 @@ $(document).on("click", "#edit-close-modal", function() {
                 : "";
             const isExpiredClass = booking.is_expired ? " expired" : "";
 
-            const bookingColor = booking.is_expired ? "#d3d3d3" : getRandomColor();
+            const bookingColor = booking.is_expired
+              ? "#d3d3d3"
+              : getRandomColor();
 
             const remainingStartDay = booking.start_day;
             if (remainingStartDay <= booking.end_day) {
@@ -601,7 +646,8 @@ $(document).on("click", "#edit-close-modal", function() {
                 let cell_width = $dayCell.outerWidth();
                 const remainingDays = booking.end_day - remainingStartDay + 1;
                 const remainingWidth = remainingDays * cell_width - 2;
-                const remainingLeft = (remainingStartDay - booking.start_day) * cell_width;
+                const remainingLeft =
+                  (remainingStartDay - booking.start_day) * cell_width;
                 const $bookingDiv = $(
                   `<div class="booked${isCheckIn}${isCheckOut}${isExpiredClass}"></div>`
                 )
@@ -650,7 +696,10 @@ $(document).on("click", "#edit-close-modal", function() {
       const cellWidth = $dayCell.length ? $dayCell.outerWidth() : 0;
       const overlayPosition = fixedColumnsWidth + (todayDate - 1) * cellWidth;
 
-      const $overlay = $('<div class="current-date-overlay"></div>').css("left", overlayPosition + "px");
+      const $overlay = $('<div class="current-date-overlay"></div>').css(
+        "left",
+        overlayPosition + "px"
+      );
       $container.append($overlay);
     }
   }
