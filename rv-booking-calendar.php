@@ -134,120 +134,131 @@ class RV_Gantt_Booking_Calendar
             wp_send_json_success('Dates are available.');
         }
     }
-    public function check_availability_on_edit() {
-        check_ajax_referer('rvbs_gantt_nonce', 'nonce');
-        global $wpdb;
-    
-        $lot_id = intval($_POST['lot_id']);
-        $check_in = sanitize_text_field($_POST['check_in']);
-        $check_out = sanitize_text_field($_POST['check_out']);
-        $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
-        // var_dump($booking_id);
-    
-        if (!$lot_id || !$check_in || !$check_out || !strtotime($check_in) || !strtotime($check_out)) {
-            wp_send_json_error('Invalid input data.');
-        }
-    
-        if (strtotime($check_in) >= strtotime($check_out)) {
-            wp_send_json_error('Check-in date must be before check-out date.');
-        }
-    
-        $lot = $wpdb->get_row($wpdb->prepare(
-            "SELECT post_id, is_available, is_trash, deleted_post 
-             FROM {$wpdb->prefix}rvbs_rv_lots 
-             WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
+  public function check_availability_on_edit() {
+    check_ajax_referer('rvbs_gantt_nonce', 'nonce');
+    global $wpdb;
+
+    $lot_id = intval($_POST['lot_id']);
+    $check_in = sanitize_text_field($_POST['check_in']);
+    $check_out = sanitize_text_field($_POST['check_out']);
+    $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
+
+    // Optional buffer day between bookings (0 = no buffer, 1 = 1-day gap required)
+    $buffer_days = 1;
+
+    if (!$lot_id || !$check_in || !$check_out || !strtotime($check_in) || !strtotime($check_out)) {
+        wp_send_json_error('Invalid input data.');
+    }
+
+    if (strtotime($check_in) >= strtotime($check_out)) {
+        wp_send_json_error('Check-in date must be before check-out date.');
+    }
+
+    $lot = $wpdb->get_row($wpdb->prepare(
+        "SELECT post_id, is_available, is_trash, deleted_post 
+         FROM {$wpdb->prefix}rvbs_rv_lots 
+         WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
+        $lot_id
+    ));
+
+    if (!$lot) {
+        wp_send_json_error('Lot is not available or does not exist.');
+    }
+
+    $original_booking = null;
+    if ($booking_id) {
+        $original_booking = $wpdb->get_row($wpdb->prepare(
+            "SELECT check_in, check_out 
+             FROM {$wpdb->prefix}rvbs_bookings 
+             WHERE id = %d AND post_id = %d",
+            $booking_id,
             $lot_id
         ));
-    
-        if (!$lot) {
-            wp_send_json_error('Lot is not available or does not exist.');
+
+        if (!$original_booking) {
+            wp_send_json_error('Booking does not exist or is invalid.');
         }
-    
-        $original_booking = null;
-        if ($booking_id) {
-            $original_booking = $wpdb->get_row($wpdb->prepare(
-                "SELECT check_in, check_out 
-                 FROM {$wpdb->prefix}rvbs_bookings 
-                 WHERE id = %d AND post_id = %d",
-                $booking_id,
-                $lot_id
-            ));
-    
-            if (!$original_booking) {
-                wp_send_json_error('Booking does not exist or is invalid.');
-            }
+    }
+
+    $original_check_in = $original_booking ? $original_booking->check_in : null;
+    $original_check_out = $original_booking ? $original_booking->check_out : null;
+
+    $response = [];
+
+    $is_extension = (
+        $original_booking &&
+        strtotime($check_in) == strtotime($original_check_in) &&
+        strtotime($check_out) > strtotime($original_check_out)
+    );
+
+    $is_shortening = (
+        $original_booking &&
+        strtotime($check_in) >= strtotime($original_check_in) &&
+        strtotime($check_out) <= strtotime($original_check_out)
+    );
+
+    // Adjust dates for buffer
+    $adjusted_check_in = date('Y-m-d', strtotime($check_in) - ($buffer_days * 86400));
+    $adjusted_check_out = date('Y-m-d', strtotime($check_out) + ($buffer_days * 86400));
+
+    if ($is_extension) {
+        $extended_start = $original_check_out;
+        $extended_end = $check_out;
+
+        $adjusted_start = date('Y-m-d', strtotime($extended_start) + ($buffer_days * 86400));
+        $adjusted_end = date('Y-m-d', strtotime($extended_end) + ($buffer_days * 86400));
+
+        $query = "
+            SELECT COUNT(*) 
+            FROM {$wpdb->prefix}rvbs_bookings 
+            WHERE post_id = %d 
+            AND status IN ('pending', 'confirmed')
+            AND NOT (check_out <= %s OR check_in >= %s)
+            AND id != %d
+        ";
+        $params = [$lot_id, $extended_start, $adjusted_end, $booking_id];
+        $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
+
+        if ($conflict > 0) {
+            wp_send_json_error('The extended booking period conflicts with other bookings.');
         }
-    
-        $original_check_in = $original_booking ? $original_booking->check_in : null;
-        $original_check_out = $original_booking ? $original_booking->check_out : null;
-    
-        $response = [];
-    
-        // Check if extending booking
-        $is_extension = (
-            $original_booking &&
-            strtotime($check_in) == strtotime($original_check_in) &&
-            strtotime($check_out) > strtotime($original_check_out)
-        );
-    
-        $is_shortening = (
-            $original_booking &&
-            strtotime($check_in) >= strtotime($original_check_in) &&
-            strtotime($check_out) <= strtotime($original_check_out)
-        );
-    
-        if ($is_extension) {
-            // Check only the new extended portion
-            $extended_start = $original_check_out;
-            $extended_end = $check_out;
-    
-            $query = "
-                SELECT COUNT(*) 
-                FROM {$wpdb->prefix}rvbs_bookings 
-                WHERE post_id = %d 
-                AND status IN ('pending', 'confirmed')
-                AND NOT (check_out <= %s OR check_in >= %s)
-                AND id != %d
-            ";
-            $params = [$lot_id, $extended_start, $extended_end, $booking_id];
-            $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
-    
-            if ($conflict > 0) {
-                wp_send_json_error('The extended booking period conflicts with other bookings.');
-            }
-    
-            $extended_days = (strtotime($check_out) - strtotime($original_check_out)) / (60 * 60 * 24);
-            $response['message'] = "Booking extended by {$extended_days} day(s), now until {$check_out}.";
-            wp_send_json_success($response);
-        }
-    
-        // If shortening or moving dates
-        if (!$is_shortening) {
-            // Check the full range
-            $query = "
-                SELECT COUNT(*) 
-                FROM {$wpdb->prefix}rvbs_bookings 
-                WHERE post_id = %d 
-                AND status IN ('pending', 'confirmed')
-                AND NOT (check_out <= %s OR check_in >= %s)
-                AND id != %d
-            ";
-            $params = [$lot_id, $check_in, $check_out, $booking_id];
-            $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
-    
-            if ($conflict > 0) {
-                wp_send_json_error('Selected dates conflict with other bookings.');
-            }
-        }
-    
-        if ($is_shortening) {
-            $response['message'] = "Booking shortened, now ends on {$check_out}.";
-        } else {
-            $response['message'] = "Booking updated to new date range: {$check_in} to {$check_out}.";
-        }
-    
+
+        $extended_days = (strtotime($check_out) - strtotime($original_check_out)) / (60 * 60 * 24);
+        $response['message'] = "Booking extended by {$extended_days} day(s), now until {$check_out}.";
+        $response['booking_status'] = 'extended';
+
         wp_send_json_success($response);
     }
+
+    // If shortening or moving dates
+    if (!$is_shortening) {
+        $query = "
+            SELECT COUNT(*) 
+            FROM {$wpdb->prefix}rvbs_bookings 
+            WHERE post_id = %d 
+            AND status IN ('pending', 'confirmed')
+            AND NOT (check_out <= %s OR check_in >= %s)
+            AND id != %d
+        ";
+        $params = [$lot_id, $adjusted_check_in, $adjusted_check_out, $booking_id];
+        $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
+
+        if ($conflict > 0) {
+            wp_send_json_error('Selected dates conflict with other bookings.');
+        }
+    }
+
+    if ($is_shortening) {
+        $response['message'] = "Booking shortened, now ends on {$check_out}.";
+        $response['booking_status'] = 'shortened';
+    } else {
+        $response['message'] = "Booking updated to new date range: {$check_in} to {$check_out}.";
+        $response['booking_status'] = 'extended';
+    }
+
+    wp_send_json_success($response);
+}
+
     
     
 
