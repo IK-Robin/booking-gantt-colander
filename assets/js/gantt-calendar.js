@@ -1,6 +1,7 @@
 jQuery(document).ready(function ($) {
   // Helper function to generate random color
-
+let is_edit_booking = false;
+let is_add_new_booking = false;
   let user_not_found = false;
   function getRandomColor() {
     const letters = "0123456789ABCDEF";
@@ -31,11 +32,14 @@ jQuery(document).ready(function ($) {
     $("label[for='total_price']").text("Total Price: $0.00");
     // $("#booking-form button[type='submit']").prop("disabled", true);
     $("#booking-modal").show();
+    is_add_new_booking = true;
   });
 
   // Close modal
   $("#close-modal").on("click", function () {
     $("#booking-modal").hide();
+    is_add_new_booking = false;
+    is_edit_booking = false;
   });
 
   // Update total price
@@ -74,16 +78,24 @@ jQuery(document).ready(function ($) {
     const checkIn = $form.find("#check_in").val();
     const checkOut = $form.find("#check_out").val();
     const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
+    const booking_id = $form.find("#booking_id").val();
     const nights = Math.ceil( 
       (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
     );
     if (lotId && checkIn && checkOut) {
+      let action='';
+      if(is_add_new_booking){
+        action= "rvbs_check_availability";
+      }else if(is_edit_booking){
+        action= "rvbs_check_availability_edit";
+      }
       $.ajax({
         url: rvbs_gantt.ajax_url,
         type: "POST",
         data: {
-          action: "rvbs_check_availability",
+          action: action,
           lot_id: lotId,
+          booking_id: booking_id,
           check_in: checkIn,
           check_out: checkOut,
           nonce: rvbs_gantt.nonce,
@@ -361,6 +373,12 @@ data.user_email = user_email;
     const bookingId = $(this).data("booking-id");
     const booking_post_id = $(this).data("booking-post-id");
     console.log("Booking ID:", bookingId,'Booking Post ID:', booking_post_id);
+    is_edit_booking = true;
+    is_add_new_booking = false;
+
+    //add the id of the of the bookgin id to the booking id field
+    $("#booking_id").val(bookingId);
+    
     $.ajax({
       url: rvbs_gantt.ajax_url,
       type: "POST",
@@ -373,30 +391,57 @@ data.user_email = user_email;
       success: function (response) {
         if (response.success) {
           const booking = response.data;
+      
           $("#booking_id").val(booking.id);
-          $("#lot_id").val(booking.lot_id);
+          // Ensure the lot_id is a string for matching
+const lotId = booking.post_id.toString();
+
+// Check if the option exists
+if ($(`#lot_id option[value="${lotId}"]`).length) {
+  $("#lot_id").val(lotId).trigger("change");
+} else {
+  console.warn("Lot ID not found in the dropdown:", lotId);
+}
+
+     
+      
           $("#user_id").val(booking.user_id);
+          //enable user search autocomplete from showing
+          $("#user_search").prop("disabled", false);
+          $("#user_search").val(booking.user_name + " (" + booking.user_email + ")");
           $("#check_in").val(booking.check_in);
           $("#check_out").val(booking.check_out);
           $("#total_price").val(booking.total_price);
           $("#status").val(booking.status);
+      
           // Update lot_price based on selected lot
           const price = $(`#lot_id option[value="${booking.lot_id}"]`).data("price");
           $("#lot_price").val(price ? price.toFixed(2) : "");
+      
+          // Update total price label
           $("label[for='total_price']").text(
             `Total Price: $${parseFloat(booking.total_price).toFixed(2)}`
           );
+      
           $("#booking-modal").show();
         } else {
-          alert("Error loading booking details");
+          alert("Error loading booking details: " + response.data);
         }
       },
+      
+      
       error: function (xhr, status, error) {
         console.log("Edit booking error:", xhr, status, error);
         alert("Error loading booking details");
       },
     });
   });
+
+  // Close edit modal
+$(document).on("click", "#edit-close-modal", function() {
+  $("#booking-modal").hide();
+});
+
 
   // Navigation
   $(".prev-month, .next-month").on("click", function () {
