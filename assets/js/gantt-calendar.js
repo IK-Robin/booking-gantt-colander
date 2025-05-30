@@ -690,6 +690,7 @@ function fetchUnavailableDates(lotId) {
       },
       success: function (response) {
         if (response.success) {
+          console.log(response)
           renderCalendarGrid(response.data.calendar_data);
           $(".current-month").text(response.data.month_display);
           $(".prev-month")
@@ -710,168 +711,128 @@ function fetchUnavailableDates(lotId) {
     });
   }
 
-  function renderCalendarGrid(data) {
-    console.log(data);
+function renderCalendarGrid(data) {
     const $container = $(".calendar-container");
     $container.empty();
 
     const $gridContainer = $('<div class="rvbs-gantt-grid"></div>')
-      .attr("data-current-month", data.month)
-      .attr("data-current-year", data.year)
-      .attr("data-days-in-month", data.days_in_month);
+        .attr("data-current-month", data.month)
+        .attr("data-current-year", data.year)
+        .attr("data-days-in-month", data.days_in_month);
 
-    const $headerRow = $(
-      '<div class="rvbs-gantt-row rvbs-gantt-header"></div>'
-    );
-    $headerRow.append(
-      '<div class="rvbs-gantt-cell header-cell serial-no">Serial No</div>'
-    );
-    $headerRow.append(
-      '<div class="rvbs-gantt-cell header-cell rv-lot-title">RV Lot Title</div>'
-    );
-    $headerRow.append(
-      '<div class="rvbs-gantt-cell header-cell status">Status</div>'
-    );
+    const $headerRow = $('<div class="rvbs-gantt-row rvbs-gantt-header"></div>');
+    $headerRow.append('<div class="rvbs-gantt-cell header-cell serial-no">Serial No</div>');
+    $headerRow.append('<div class="rvbs-gantt-cell header-cell rv-lot-title">RV Lot Title</div>');
+    $headerRow.append('<div class="rvbs-gantt-cell header-cell status">Status</div>');
 
     data.days.forEach((day) => {
-      const $dayHeader = $(
-        '<div class="rvbs-gantt-cell header-cell day-header"></div>'
-      )
-        .attr("data-day", day.day)
-        .text(day.day);
-      if (day.is_today) {
-        $dayHeader.addClass("today");
-      }
-      $headerRow.append($dayHeader);
+        const $dayHeader = $('<div class="rvbs-gantt-cell header-cell day-header"></div>')
+            .attr("data-day", day.day)
+            .text(day.day);
+        if (day.is_today) {
+            $dayHeader.addClass("today");
+        }
+        $headerRow.append($dayHeader);
     });
 
     $gridContainer.append($headerRow);
 
     data.lots.forEach((lot) => {
-      const $row = $('<div class="rvbs-gantt-row"></div>');
-      $row.append(`<div class="rvbs-gantt-cell serial-no">${lot.serial}</div>`);
-      $row.append(
-        `<div class="rvbs-gantt-cell rv-lot-title">${lot.title}</div>`
-      );
+        const $row = $('<div class="rvbs-gantt-row"></div>');
+        $row.append(`<div class="rvbs-gantt-cell serial-no">${lot.serial}</div>`);
+        $row.append(`<div class="rvbs-gantt-cell rv-lot-title">${lot.title}</div>`);
 
-      const $statusCell = $('<div class="rvbs-gantt-cell status"></div>');
-      const $statusSelect = $('<select class="lot-status"></select>').attr(
-        "data-lot-id",
-        lot.id
-      );
-      $statusSelect.append(
-        `<option value="available" ${
-          lot.is_available ? "selected" : ""
-        }>Available</option>`
-      );
-      $statusSelect.append(
-        `<option value="unavailable" ${
-          !lot.is_available ? "selected" : ""
-        }>Unavailable</option>`
-      );
-      $statusCell.append($statusSelect);
-      $row.append($statusCell);
+        const $statusCell = $('<div class="rvbs-gantt-cell status"></div>');
+        const $statusSelect = $('<select class="lot-status"></select>').attr("data-lot-id", lot.id);
+        $statusSelect.append(`<option value="available" ${lot.is_available ? "selected" : ""}>Available</option>`);
+        $statusSelect.append(`<option value="unavailable" ${!lot.is_available ? "selected" : ""}>Unavailable</option>`);
+        $statusCell.append($statusSelect);
+        $row.append($statusCell);
 
-      for (let day = 1; day <= data.days_in_month; day++) {
-        const dayData = data.days[day - 1];
-        const $dayCell = $('<div class="rvbs-gantt-cell day-cell"></div>')
-          .attr("data-day", day)
-          .attr("data-lot-id", lot.id);
+        for (let day = 1; day <= data.days_in_month; day++) {
+            const dayData = data.days[day - 1];
+            const $dayCell = $('<div class="rvbs-gantt-cell day-cell"></div>')
+                .attr("data-day", day)
+                .attr("data-lot-id", lot.id);
 
-        if (!lot.is_available) {
-          const $unavailable = $('<div class="unavailable"></div>').text(
-            "Unavailable"
-          );
-          $dayCell.append($unavailable);
-          $row.append($dayCell);
-          continue;
+            if (!lot.is_available) {
+                const $unavailable = $('<div class="unavailable"></div>').text("Unavailable");
+                $dayCell.append($unavailable);
+                $row.append($dayCell);
+                continue;
+            }
+
+            const bookingsForDay = lot.bookings.filter((booking) => {
+                return (
+                    day >= booking.start_day &&
+                    day <= booking.end_day &&
+                    ['pending', 'confirmed'].includes(booking.status)
+                );
+            });
+
+            bookingsForDay.forEach((booking) => {
+                if (day === booking.start_day) {
+                    const today = new Date();
+                    const todayDate = today.getDate();
+                    const todayMonth = today.getMonth() + 1;
+                    const todayYear = today.getFullYear();
+                    const checkOutDate = new Date(booking.check_out);
+                    const isExpiredToday =
+                        checkOutDate.getDate() === todayDate &&
+                        checkOutDate.getMonth() + 1 === todayMonth &&
+                        checkOutDate.getFullYear() === todayYear;
+
+                    const bookingInfo = `Lot Title: ${lot.title}\nUser ID: ${booking.user_id}\nCheck-in: ${booking.check_in}\nCheck-out: ${booking.check_out}\nTotal Price: $${booking.total_price}\nStatus: ${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}`;
+
+                    const isCheckIn =
+                        new Date(booking.check_in).getDate() === day &&
+                        new Date(booking.check_in).getMonth() + 1 === data.month &&
+                        new Date(booking.check_in).getFullYear() === data.year
+                            ? " check-in"
+                            : "";
+                    const isCheckOut =
+                        new Date(booking.check_out).getDate() === day &&
+                        new Date(booking.check_out).getMonth() + 1 === data.month &&
+                        new Date(booking.check_out).getFullYear() === data.year
+                            ? " check-out"
+                            : "";
+                    const isExpiredClass = booking.is_expired ? " expired" : "";
+
+                    const bookingColor = booking.is_expired ? "#d3d3d3" : getRandomColor();
+
+                    const remainingStartDay = booking.start_day;
+                    if (remainingStartDay <= booking.end_day) {
+                        setTimeout(() => {
+                            let cell_width = $dayCell.outerWidth();
+                            const remainingDays = booking.end_day - booking.start_day + 1;
+                            const remainingWidth = remainingDays * cell_width - 2;
+                            const remainingLeft = (remainingStartDay - booking.start_day) * cell_width;
+                            const $bookingDiv = $(`<div class="booked${isCheckIn}${isCheckOut}${isExpiredClass}"></div>`)
+                                .attr("data-booking-id", booking.id)
+                                .attr("data-booking-post-id", booking.post_id)
+                                .attr("data-check-in", booking.check_in)
+                                .attr("data-check-out", booking.check_out)
+                                .attr("data-start-day", booking.start_day)
+                                .attr("data-end-day", booking.end_day)
+                                .css("width", `${remainingWidth}px`)
+                                .css("left", `${remainingLeft}px`)
+                                .attr("data-title", bookingInfo);
+                            $bookingDiv.css("background-color", bookingColor);
+                            $bookingDiv.append(`<span class="booking-dates">${booking.check_in} to ${booking.check_out}</span>`);
+                            $dayCell.append($bookingDiv);
+                        }, 1);
+                    }
+                }
+            });
+
+            $row.append($dayCell);
         }
 
-        const bookingsForDay = lot.bookings.filter((booking) => {
-          return day >= booking.start_day && day <= booking.end_day;
-        });
-
-        bookingsForDay.forEach((booking) => {
-          if (day === booking.start_day) {
-            const today = new Date();
-            const todayDate = today.getDate();
-            const todayMonth = today.getMonth() + 1;
-            const todayYear = today.getFullYear();
-            const checkOutDate = new Date(booking.check_out);
-            const isExpiredToday =
-              checkOutDate.getDate() === todayDate &&
-              checkOutDate.getMonth() + 1 === todayMonth &&
-              checkOutDate.getFullYear() === todayYear;
-
-            const bookingInfo = `Lot Title: ${lot.title}\nUser ID: ${
-              booking.user_id
-            }\nCheck-in: ${booking.check_in}\nCheck-out: ${
-              booking.check_out
-            }\nTotal Price: $${booking.total_price}\nStatus: ${
-              isExpiredToday
-                ? "Expired Today"
-                : booking.is_expired
-                ? "Expired"
-                : booking.status.charAt(0).toUpperCase() +
-                  booking.status.slice(1)
-            }`;
-
-            const isCheckIn =
-              new Date(booking.check_in).getDate() === day &&
-              new Date(booking.check_in).getMonth() + 1 === data.month &&
-              new Date(booking.check_in).getFullYear() === data.year
-                ? " check-in"
-                : "";
-            const isCheckOut =
-              new Date(booking.check_out).getDate() === day &&
-              new Date(booking.check_out).getMonth() + 1 === data.month &&
-              new Date(booking.check_out).getFullYear() === data.year
-                ? " check-out"
-                : "";
-            const isExpiredClass = booking.is_expired ? " expired" : "";
-
-            const bookingColor = booking.is_expired
-              ? "#d3d3d3"
-              : getRandomColor();
-
-            const remainingStartDay = booking.start_day;
-            if (remainingStartDay <= booking.end_day) {
-              setTimeout(() => {
-                let cell_width = $dayCell.outerWidth();
-                const remainingDays = booking.end_day - booking.start_day + 1;
-                const remainingWidth = remainingDays * cell_width - 2;
-                const remainingLeft =
-                  (remainingStartDay - booking.start_day) * cell_width;
-                const $bookingDiv = $(
-                  `<div class="booked${isCheckIn}${isCheckOut}${isExpiredClass}"></div>`
-                )
-                  .attr("data-booking-id", booking.id)
-                  .attr("data-booking-post-id", booking.post_id)
-                  .attr("data-check-in", booking.check_in)
-                  .attr("data-check-out", booking.check_out)
-                  .attr("data-start-day", booking.start_day)
-                  .attr("data-end-day", booking.end_day)
-                  .css("width", `${remainingWidth}px`)
-                  .css("left", `${remainingLeft}px`)
-                  .attr("data-title", bookingInfo);
-                $bookingDiv.css("background-color", bookingColor);
-                $bookingDiv.append(
-                  `<span class="booking-dates">${booking.check_in} to ${booking.check_out}</span>`
-                );
-                $dayCell.append($bookingDiv);
-              }, 1);
-            }
-          }
-        });
-
-        $row.append($dayCell);
-      }
-
-      $gridContainer.append($row);
+        $gridContainer.append($row);
     });
 
     $container.append($gridContainer);
-  }
+}
 
   function addCurrentDateOverlay() {
     $(".current-date-overlay").remove();
