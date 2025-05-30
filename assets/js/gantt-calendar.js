@@ -3,6 +3,7 @@ jQuery(document).ready(function ($) {
   let is_edit_booking = false;
   let is_add_new_booking = false;
   let user_not_found = false;
+
   function getRandomColor() {
     const letters = "0123456789ABCDEF";
     let color = "#";
@@ -12,17 +13,148 @@ jQuery(document).ready(function ($) {
     return color;
   }
 
-  // Initialize Flatpickr
-  flatpickr(".rvbs-date-picker", {
-    dateFormat: "Y-m-d",
-    minDate: "today",
-    onChange: function (selectedDates, dateStr, instance) {
-      updateTotalPrice();
-      checkAvailability();
+  // Initialize Flatpickr for check-in and check-out
+const datePickers = flatpickr(".rvbs-date-picker", {
+  dateFormat: "Y-m-d",
+  minDate: "today",
+  disable: [],
+
+  onChange: function () {
+    updateTotalPrice();
+    checkAvailability();
+  },
+
+onOpen: function (selectedDates, dateStr, instance) {
+  const bookingId = $("#booking_id").val();
+  const checkIn = $("#check_in").val();
+  const checkOut = $("#check_out").val();
+
+  // ❌ Remove this auto-setting of both dates on open
+  // instance.setDate([checkIn, checkOut], false);
+
+  const lotId = $("#lot_id").val();
+  if (lotId) {
+    setTimeout(() => {
+      fetchUnavailableDates(lotId);
+    }, 100);
+  }
+}
+
+
+});
+
+// Updated fetchUnavailableDates
+// old working code 
+// function fetchUnavailableDates(lotId) {
+//   const checkInValue = $("#check_in").val();
+//   const checkOutValue = $("#check_out").val();
+
+//   $.ajax({
+//     url: rvbs_gantt.ajax_url,
+//     type: "POST",
+//     data: {
+//       action: "rvbs_get_booked_dates",
+//       lot_id: lotId,
+//       booking_id: $("#booking_id").val(),
+//       nonce: rvbs_gantt.nonce,
+//     },
+//     success: function (response) {
+//       if (response.success && response.data.disabled_dates) {
+//         datePickers.forEach((picker) => {
+//           // 1. Disable dates
+//           picker.set("disable", response.data.disabled_dates.map((d) => new Date(d)));
+
+//           // 2. Set check-in / check-out if editing
+//           if (is_edit_booking) {
+//             if (picker.element.id === "check_in" && checkInValue) {
+//               picker.setDate(checkInValue, false);
+//               $("#check_in").val(checkInValue);
+//             } else if (picker.element.id === "check_out" && checkOutValue) {
+//               picker.setDate(checkOutValue, false);
+//               $("#check_out").val(checkOutValue);
+//             }
+//           }
+
+//           picker.redraw();
+//         });
+//       }
+//     },
+//     error: function (xhr, status, error) {
+//       console.error("Fetch unavailable dates error:", xhr, status, error);
+//     },
+//   });
+// }
+
+function fetchUnavailableDates(lotId) {
+  const bookingId = $("#booking_id").val();
+  let editableDates = [];
+
+  // Gather editable dates if editing an existing booking
+  if (is_edit_booking && bookingId) {
+    const bookingBlock = $(`.booked[data-booking-id="${bookingId}"]`);
+    const checkIn = bookingBlock.data("check-in");
+    const checkOut = bookingBlock.data("check-out");
+
+    if (checkIn && checkOut) {
+      const start = new Date(checkIn);
+      const end = new Date(checkOut);
+      let loop = new Date(start);
+
+      while (loop <= end) {
+        editableDates.push(flatpickr.formatDate(loop, "Y-m-d"));
+        loop.setDate(loop.getDate() + 1);
+      }
+    }
+  }
+
+  $.ajax({
+    url: rvbs_gantt.ajax_url,
+    type: "POST",
+    data: {
+      action: "rvbs_get_booked_dates",
+      lot_id: lotId,
+      booking_id: bookingId,
+      nonce: rvbs_gantt.nonce,
+    },
+    success: function (response) {
+      if (response.success && response.data.disabled_dates) {
+        let disabledDates = is_edit_booking
+          ? response.data.disabled_dates.filter((d) => !editableDates.includes(d))
+          : response.data.disabled_dates;
+
+        datePickers.forEach((picker) => {
+          // Disable all dates that are booked, except editable ones
+          picker.set("disable", disabledDates.map((d) => new Date(d)));
+
+          // Highlight editable (originally booked) dates in red
+          picker.set("onDayCreate", function (dObj, dStr, fp, dayElem) {
+            const dateStr = dayElem.dateObj
+              ? flatpickr.formatDate(dayElem.dateObj, "Y-m-d")
+              : null;
+
+            if (editableDates.includes(dateStr)) {
+              dayElem.style.backgroundColor = "#f44336"; // Red
+              dayElem.style.color = "#fff";
+              dayElem.style.borderRadius = "6px";
+              dayElem.style.fontWeight = "bold";
+              dayElem.title = "Your original booking date";
+            }
+          });
+
+          picker.redraw();
+        });
+      }
+    },
+    error: function (xhr, status, error) {
+      console.error("Fetch unavailable dates error:", xhr, status, error);
     },
   });
+}
 
-  // Open modal
+
+
+
+  // Open modal for new booking
   $("#add-new-booking").on("click", function () {
     $("#booking-form").trigger("reset");
     $("#lot_id").val("");
@@ -30,9 +162,9 @@ jQuery(document).ready(function ($) {
     $("#total_price").val("");
     $("#availability-message").empty();
     $("label[for='total_price']").text("Total Price: $0.00");
-    // $("#booking-form button[type='submit']").prop("disabled", true);
     $("#booking-modal").show();
     is_add_new_booking = true;
+    is_edit_booking = false;
   });
 
   // Close modal
@@ -40,6 +172,19 @@ jQuery(document).ready(function ($) {
     $("#booking-modal").hide();
     is_add_new_booking = false;
     is_edit_booking = false;
+//  $("#booking-form").trigger("reset");
+//     datePickers.forEach((picker) => {
+//       picker.clear();
+//       picker.set("disable", []);
+//       picker.redraw();
+//     });
+// Clear Flatpickr date pickers
+  datePickers.forEach((picker) => {
+    picker.clear();                    // Remove selected dates
+    picker.set("disable", []);        // Clear disabled dates
+    picker.set("onDayCreate", null);  // Remove any custom highlight styling
+    picker.redraw();                  // Redraw the calendar UI
+  });
   });
 
   // Update total price
@@ -81,102 +226,162 @@ jQuery(document).ready(function ($) {
     const lotId = $form.find("#lot_id").val();
     const checkIn = $form.find("#check_in").val();
     const checkOut = $form.find("#check_out").val();
-    const price = $form.find(`#lot_id option[value="${lotId}"]`).data("price");
-    const booking_id = $form.find("#booking_id").val();
-    const nights = Math.ceil(
-      (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
-    );
-    if (lotId && checkIn && checkOut) {
-      let action = "";
+    const bookingId = $form.find("#booking_id").val();
+    const adults = $form.find("#adults").val() || 0;
+    const children = $form.find("#children").val() || 0;
+    const pets = $form.find("#pets").val() || 0;
+    const lengthFt = $form.find("#length_ft").val() || 0;
+    const price = $form
+      .find(`#lot_id option[value="${lotId}"]`)
+      .data("price");
+    const nights =
+      checkIn && checkOut
+        ? Math.ceil(
+            (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
+          )
+        : 0;
 
-      // check the request method is it the add new booking or edit booking
-      if (is_add_new_booking) {
-        action = "rvbs_check_availability";
-      } else if (is_edit_booking) {
-        action = "rvbs_check_availability_edit";
-      }
+    if (lotId && checkIn && checkOut) {
+      let action = is_add_new_booking
+        ? "rvbs_check_availability"
+        : "rvbs_check_availability_edit";
+
       $.ajax({
         url: rvbs_gantt.ajax_url,
         type: "POST",
         data: {
           action: action,
           lot_id: lotId,
-          booking_id: booking_id,
+          booking_id: bookingId,
           check_in: checkIn,
           check_out: checkOut,
+          adults: adults,
+          children: children,
+          pets: pets,
+          length_ft: lengthFt,
           nonce: rvbs_gantt.nonce,
         },
         success: function (response) {
           const $message = $("#availability-message");
           const $submit = $form.find('button[type="submit"]');
 
-          if (response.success) {
-            if (is_add_new_booking) {
-              console.log($submit);
-              $message.html(`<span style="color:green;"> Available</span>`);
-              $submit.prop("disabled", false);
-            } else if (is_edit_booking) {
+          if (is_edit_booking) {
+            if (
+              response.success &&
+              (response.data.html === "available" ||
+                response.data.booking_status === "shortened" ||
+                response.data.booking_status === "extended")
+            ) {
               $message.html(
-                `<span style="color:green;"> ${response.data.message}</span>`
+                `<span style="color:green;">${
+                  response.data.message || "Available"
+                }</span>`
               );
-              // check the booking status and hide and show the submit button
+              $submit
+                .prop("disabled", false)
+                .text(is_add_new_booking ? "Add to Cart" : "Update");
               if (
-                response.data.booking_status == "shortened" ||
-                response.data.booking_status == "extended"
+                is_edit_booking &&
+                response.data.booking_status !== "shortened" &&
+                response.data.booking_status !== "extended"
               ) {
-                $submit.prop("disabled", false);
-              } else {
-                $submit.prop("disabled", true);
+                $submit.prop("disabled", true).text("Unavailable");
               }
+            } else {
+              $message.html(
+                `<span style="color:red;">${
+                  response.data.message ||
+                  response.data ||
+                  "Not available for this date"
+                }</span>`
+              );
+              $submit.prop("disabled", true).text("Unavailable");
             }
+          } else if (is_add_new_booking) {
+            if (response.success && response.data === "Dates are available.") {
+              $message.html(
+                `<span style="color:green;">${
+                  response.data.message || "Available"
+                }</span>`
+              );
+              $submit.prop("disabled", false).text("Book Now");
+            } else {
+              $message.html(
+                `<span style="color:red;">${
+                  response.data.message ||
+                  response.data ||
+                  "Not available for this date"
+                }</span>`
+              );
+              $submit.prop("disabled", true).text("Unavailable");
+            }
+          }
 
+          if (price && nights) {
             $("label[for='total_price']").text(
-              `Total Price : $${price} * ${nights}  `
+              `Total Price: $${(price * nights).toFixed(2)}`
             );
-          } else {
-            $message.html(
-              '<span style="color:red;">' + response.data + "</span>"
-            );
-            // add the total price to the message label
-
-            $("label[for='total_price']").text(
-              `Total Price : $${price} * ${nights}  `
-            );
-
-            // $submit.prop("disabled", true);
           }
         },
         error: function (xhr, status, error) {
-          console.log("Availability error:", xhr, status, error);
-          $("#availability-message").html(
+          console.error("Availability error:", xhr, status, error);
+          const $message = $("#availability-message");
+          const $submit = $form.find('button[type="submit"]');
+          $message.html(
             '<span style="color:red;">Error checking availability</span>'
           );
-          // $form.find('button[type="submit"]').prop("disabled", true);
+          $submit.prop("disabled", true).text("Unavailable");
         },
       });
     } else {
-      $("#availability-message").empty();
-      // $form.find('button[type="submit"]').prop("disabled", true);
-      // check if any lotid is not selected and show a message under the input field
+      const $message = $("#availability-message");
+      const $submit = $form.find('button[type="submit"]');
+      $message.empty();
+      $submit.prop("disabled", true).text("Unavailable");
+
       if (!lotId) {
         $("#lot_id").addClass("error");
-        $("#lot_id").next(".error-message").remove();
+        $("#lot_id")
+          .next(".error-message")
+          .remove();
         $("#lot_id").after(
           '<span class="error-message" style="color:red;">Please select a lot</span>'
         );
       } else {
         $("#lot_id").removeClass("error");
-        $("#lot_id").next(".error-message").remove();
+        $("#lot_id")
+          .next(".error-message")
+          .remove();
       }
+
       if (!checkIn) {
         $("#check_in").addClass("error");
-        $("#check_in").next(".error-message").remove();
+        $("#check_in")
+          .next(".error-message")
+          .remove();
         $("#check_in").after(
           '<span class="error-message" style="color:red;">Please select a check-in date</span>'
         );
       } else {
         $("#check_in").removeClass("error");
-        $("#check_in").next(".error-message").remove();
+        $("#check_in")
+          .next(".error-message")
+          .remove();
+      }
+
+      if (!checkOut) {
+        $("#check_out").addClass("error");
+        $("#check_out")
+          .next(".error-message")
+          .remove();
+        $("#check_out").after(
+          '<span class="error-message" style="color:red;">Please select a check-out date</span>'
+        );
+      } else {
+        $("#check_out").removeClass("error");
+        $("#check_out")
+          .next(".error-message")
+          .remove();
       }
     }
   }
@@ -197,32 +402,10 @@ jQuery(document).ready(function ($) {
     checkAvailability();
   });
 
-  // here i want to hide the allerts message under the input fields when the user click on the input field and remove the error class from the input field
-  $(".rvbs-date-picker").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#lot_id").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#user_id").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#check_in").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#check_out").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#total_price").on("focus", function () {
-    $(this).removeClass("error");
-    $(this).next(".error-message").remove();
-  });
-  $("#status").on("focus", function () {
+  // Clear error messages on input focus
+  $(
+    ".rvbs-date-picker, #lot_id, #user_id, #check_in, #check_out, #total_price, #status"
+  ).on("focus", function () {
     $(this).removeClass("error");
     $(this).next(".error-message").remove();
   });
@@ -231,7 +414,8 @@ jQuery(document).ready(function ($) {
   $("#booking-form").on("submit", function (e) {
     e.preventDefault();
     const bookingId = $("#booking_id").val();
-    const action = bookingId ? "rvbs_update_booking" : "rvbs_add_booking";
+    let action = is_edit_booking ? "rvbs_update_booking" : "rvbs_add_booking";
+
     let data = {
       action: action,
       booking_id: bookingId,
@@ -240,30 +424,18 @@ jQuery(document).ready(function ($) {
       check_in: $("#check_in").val(),
       check_out: $("#check_out").val(),
       total_price: $("#total_price").val(),
-      status: $("#status").val() || "pending",
+      status: $("#booking_status").val() || "pending",
       nonce: rvbs_gantt.nonce,
     };
 
-    // check if a user is empity and not found in the user db then add a new user to the db and store the user id in the user id field
-
     if (user_not_found) {
-      // get the user name and email from the input fields
-      console.log("user not found");
       const user_name = $("#new_user_name").val();
       const user_email = $("#new_user_email").val();
-      user_id = 0;
-      // check if the user name and email are not empty
-
       if (user_name && user_email) {
-        // add the user to the data array and send the data to the server
         data.user_name = user_name;
         data.user_email = user_email;
       }
-
-      // close
     }
-
-    // check all required fields are filled and show a message if the input fild is empty and the message should be under the input field
 
     const requiredFields = ["#lot_id", "#user_id", "#check_in", "#check_out"];
     let allFilled = true;
@@ -276,7 +448,6 @@ jQuery(document).ready(function ($) {
         $field.after(
           '<span class="error-message" style="color:red;">This field is required</span>'
         );
-        // retun if any field is empty and not submit the form
       } else {
         $field.removeClass("error");
         $field.next(".error-message").remove();
@@ -336,9 +507,8 @@ jQuery(document).ready(function ($) {
         } else {
           resultsDiv.hide();
           $("#new-user-fields").show();
-          // empty the user id field and show a message under the input field
           $("#user_id").val("");
-          if ($("#user_id").val(0)) {
+          if (!$("#user_id").val()) {
             user_not_found = true;
           }
         }
@@ -394,12 +564,28 @@ jQuery(document).ready(function ($) {
   $(document).on("click", ".booked", function () {
     const bookingId = $(this).data("booking-id");
     const booking_post_id = $(this).data("booking-post-id");
-    console.log("Booking ID:", bookingId, "Booking Post ID:", booking_post_id);
+    const checkInDate = $(this).data("check-in");
+    const checkOutDate = $(this).data("check-out");
+    console.log("Edit booking - ID:", bookingId, "Check-in:", checkInDate, "Check-out:", checkOutDate);
+
     is_edit_booking = true;
     is_add_new_booking = false;
 
-    //add the id of the of the bookgin id to the booking id field
     $("#booking_id").val(bookingId);
+
+    // Set input fields and Flatpickr dates
+ if (checkInDate && checkOutDate) {
+  datePickers.forEach((picker) => {
+    if (picker.element.id === "check_in") {
+      picker.setDate(checkInDate, false);
+    } else if (picker.element.id === "check_out") {
+      picker.setDate(checkOutDate, false);
+    }
+  });
+} else {
+  console.warn("Check-in or check-out date missing", $(this).get(0).outerHTML);
+}
+
 
     $.ajax({
       url: rvbs_gantt.ajax_url,
@@ -414,11 +600,8 @@ jQuery(document).ready(function ($) {
         if (response.success) {
           const booking = response.data;
 
-          $("#booking_id").val(booking.id);
-          // Ensure the lot_id is a string for matching
+          // Populate form fields
           const lotId = booking.post_id.toString();
-
-          // Check if the option exists
           if ($(`#lot_id option[value="${lotId}"]`).length) {
             $("#lot_id").val(lotId).trigger("change");
           } else {
@@ -426,7 +609,6 @@ jQuery(document).ready(function ($) {
           }
 
           $("#user_id").val(booking.user_id);
-          //enable user search autocomplete from showing
           $("#user_search").prop("disabled", false);
           $("#user_search").val(
             booking.user_name + " (" + booking.user_email + ")"
@@ -436,25 +618,35 @@ jQuery(document).ready(function ($) {
           $("#total_price").val(booking.total_price);
           $("#status").val(booking.status);
 
-          // Update lot_price based on selected lot
-          const price = $(`#lot_id option[value="${booking.lot_id}"]`).data(
-            "price"
-          );
+          // Update Flatpickr with AJAX response dates
+          // datePickers.forEach((picker) => {
+          //   if (picker.element.id === "check_in") {
+          //     picker.setDate(booking.check_in, false);
+          //   } else if (picker.element.id === "check_out") {
+          //     picker.setDate(booking.check_out, false);
+          //   }
+          // });
+
+          const price = $(`#lot_id option[value="${lotId}"]`).data("price");
           $("#lot_price").val(price ? price.toFixed(2) : "");
 
-          // Update total price label
           $("label[for='total_price']").text(
             `Total Price: $${parseFloat(booking.total_price).toFixed(2)}`
           );
 
           $("#booking-modal").show();
+          checkAvailability();
+
+          // Fetch unavailable dates
+          if (lotId) {
+            // fetchUnavailableDates(lotId);
+          }
         } else {
           alert("Error loading booking details: " + response.data);
         }
       },
-
       error: function (xhr, status, error) {
-        console.log("Edit booking error:", xhr, status, error);
+        console.error("Edit booking error:", xhr, status, error);
         alert("Error loading booking details");
       },
     });
@@ -463,6 +655,8 @@ jQuery(document).ready(function ($) {
   // Close edit modal
   $(document).on("click", "#edit-close-modal", function () {
     $("#booking-modal").hide();
+    is_edit_booking = false;
+    is_add_new_booking = false;
   });
 
   // Navigation
@@ -496,7 +690,6 @@ jQuery(document).ready(function ($) {
       },
       success: function (response) {
         if (response.success) {
-          console.log(response);
           renderCalendarGrid(response.data.calendar_data);
           $(".current-month").text(response.data.month_display);
           $(".prev-month")
@@ -518,6 +711,7 @@ jQuery(document).ready(function ($) {
   }
 
   function renderCalendarGrid(data) {
+    console.log(data);
     const $container = $(".calendar-container");
     $container.empty();
 
@@ -644,7 +838,7 @@ jQuery(document).ready(function ($) {
             if (remainingStartDay <= booking.end_day) {
               setTimeout(() => {
                 let cell_width = $dayCell.outerWidth();
-                const remainingDays = booking.end_day - remainingStartDay + 1;
+                const remainingDays = booking.end_day - booking.start_day + 1;
                 const remainingWidth = remainingDays * cell_width - 2;
                 const remainingLeft =
                   (remainingStartDay - booking.start_day) * cell_width;
@@ -653,6 +847,8 @@ jQuery(document).ready(function ($) {
                 )
                   .attr("data-booking-id", booking.id)
                   .attr("data-booking-post-id", booking.post_id)
+                  .attr("data-check-in", booking.check_in)
+                  .attr("data-check-out", booking.check_out)
                   .attr("data-start-day", booking.start_day)
                   .attr("data-end-day", booking.end_day)
                   .css("width", `${remainingWidth}px`)
