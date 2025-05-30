@@ -43,6 +43,10 @@ class RV_Gantt_Booking_Calendar
         // check availability for admin panel
         add_action('wp_ajax_rvbs_check_availability', array($this, 'check_availability'));
         add_action('wp_ajax_rvbs_check_availability_edit', array($this, 'check_availability_on_edit'));
+
+        // get booked dates for admin panel the date is disabled in the calendar
+
+        add_action('wp_ajax_rvbs_get_booked_dates', array($this, "get_booked_dates_callback"));
     }
 
     public function add_admin_menu()
@@ -58,6 +62,48 @@ class RV_Gantt_Booking_Calendar
         );
     }
 
+    // check unavailable dates for the booking
+
+
+
+    public function get_booked_dates_callback()
+    {
+        global $wpdb;
+        $table_bookings = $wpdb->prefix . 'rvbs_bookings';
+        $lot_id = isset($_POST['lot_id']) ? intval($_POST['lot_id']) : 0;
+        $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
+
+        if (!$lot_id) {
+            wp_send_json_error('Invalid lot ID');
+            wp_die();
+        }
+
+        // Query booked dates for the given lot_id
+        $bookings = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT check_in, check_out FROM  $table_bookings WHERE post_id = %d  AND status != 'cancelled'",
+                $lot_id,
+            )
+        );
+
+        $disabled_dates = [];
+        foreach ($bookings as $booking) {
+            $check_in = new DateTime($booking->check_in);
+            $check_out = new DateTime($booking->check_out);
+            $interval = new DateInterval('P1D');
+            $date_range = new DatePeriod($check_in, $interval, $check_out);
+
+            foreach ($date_range as $date) {
+                $disabled_dates[] = $date->format('Y-m-d');
+            }
+            // Include check_out date as it might be the last day of booking
+            $disabled_dates[] = $check_out->format('Y-m-d');
+        }
+
+        $disabled_dates = array_unique($disabled_dates); // Remove duplicates
+        wp_send_json_success(['disabled_dates' => $disabled_dates]);
+        wp_die();
+    }
     public function enqueue_scripts($hook)
     {
         if ($hook !== 'toplevel_page_rv-booking-calendar') {
@@ -80,7 +126,9 @@ class RV_Gantt_Booking_Calendar
         wp_enqueue_script('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', array('jquery'), '4.6.13', true);
         wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', array(), '4.6.13');
     }
-// check  availability function on add new booking 
+
+    // old logic workigin on this function
+    // check  availability function on add new booking 
     public function check_availability()
     {
         check_ajax_referer('rvbs_gantt_nonce', 'nonce');
@@ -135,83 +183,138 @@ class RV_Gantt_Booking_Calendar
         }
     }
 
-// check availability function on edit booking
-  public function check_availability_on_edit() {
-    check_ajax_referer('rvbs_gantt_nonce', 'nonce');
-    global $wpdb;
+    // check availability function on edit booking
+    public function check_availability_on_edit()
+    {
+        check_ajax_referer('rvbs_gantt_nonce', 'nonce');
+        global $wpdb;
 
-    $lot_id = intval($_POST['lot_id']);
-    $check_in = sanitize_text_field($_POST['check_in']);
-    $check_out = sanitize_text_field($_POST['check_out']);
-    $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
+        $response = [];
 
-    // Optional buffer day between bookings (0 = no buffer, 1 = 1-day gap required)
-    $buffer_days = 1;
+        $lot_id = intval($_POST['lot_id']);
+        $check_in = sanitize_text_field($_POST['check_in']);
+        $check_out = sanitize_text_field($_POST['check_out']);
+        $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
 
-    if (!$lot_id || !$check_in || !$check_out || !strtotime($check_in) || !strtotime($check_out)) {
-        wp_send_json_error('Invalid input data.');
-    }
+        // check onavailability date for the booking
 
-    if (strtotime($check_in) >= strtotime($check_out)) {
-        wp_send_json_error('Check-in date must be before check-out date.');
-    }
-// chek if lot exists and is available
-    $lot = $wpdb->get_row($wpdb->prepare(
-        "SELECT post_id, is_available, is_trash, deleted_post 
+        $table_bookings = $wpdb->prefix . 'rvbs_bookings';
+        $table_lots = $wpdb->prefix . 'rvbs_rv_lots';
+
+        // Sanitize input
+
+
+        // Validate input
+        if (!$lot_id) {
+            wp_send_json_error(['message' => 'Missing lot ID']);
+            return;
+        }
+
+        // Fetch booked date ranges for the lot
+        $unavailable_dates_query = $wpdb->prepare(
+            "
+        SELECT DISTINCT rb.check_in, rb.check_out
+        FROM $table_bookings rb
+        INNER JOIN $table_lots rl ON rb.post_id = rl.post_id AND rb.lot_id = rl.id
+        WHERE rb.post_id = %d
+        AND rb.status IN ('pending', 'confirmed')
+        AND rl.is_available = 1
+        AND rl.is_trash = 0
+        AND rl.status = 'confirmed'",
+            $lot_id
+        );
+
+        $booked_ranges = $wpdb->get_results($unavailable_dates_query);
+        $unavailable_dates = [];
+
+        // Expand date ranges into individual dates
+        foreach ($booked_ranges as $range) {
+            $start = new DateTime($range->check_in);
+            $end = new DateTime($range->check_out);
+            $end->modify('+1 day'); // Include the checkout day as unavailable
+
+            $interval = new DateInterval('P1D');
+            $date_range = new DatePeriod($start, $interval, $end);
+
+            foreach ($date_range as $date) {
+                $unavailable_dates[] = $date->format('Y-m-d');
+            }
+        }
+
+        // Remove duplicates and sort
+        $unavailable_dates = array_unique($unavailable_dates);
+        sort($unavailable_dates); // Optional: sort dates chronologically
+
+        // Return the list of unavailable dates
+        $response['unavailable_dates'] = $unavailable_dates;
+        // check onavailability date for the booking
+
+        // Optional buffer day between bookings (0 = no buffer, 1 = 1-day gap required)
+        $buffer_days = 0;
+
+        if (!$lot_id || !$check_in || !$check_out || !strtotime($check_in) || !strtotime($check_out)) {
+            wp_send_json_error('Invalid input data.');
+        }
+
+        if (strtotime($check_in) >= strtotime($check_out)) {
+            wp_send_json_error('Check-in date must be before check-out date.');
+        }
+        // chek if lot exists and is available
+        $lot = $wpdb->get_row($wpdb->prepare(
+            "SELECT post_id, is_available, is_trash, deleted_post 
          FROM {$wpdb->prefix}rvbs_rv_lots 
          WHERE post_id = %d AND is_available = 1 AND is_trash = 0 AND deleted_post = 0",
-        $lot_id
-    ));
-
-    if (!$lot) {
-        wp_send_json_error('Lot is not available or does not exist.');
-    }
-
-    // Check for conflicting bookings
-    $original_booking = null;
-    if ($booking_id) {
-        $original_booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT check_in, check_out 
-             FROM {$wpdb->prefix}rvbs_bookings 
-             WHERE id = %d AND post_id = %d",
-            $booking_id,
             $lot_id
         ));
 
-        if (!$original_booking) {
-            wp_send_json_error('Booking does not exist or is invalid.');
+        if (!$lot) {
+            wp_send_json_error('Lot is not available or does not exist.');
         }
-    }
- 
-    $original_check_in = $original_booking ? $original_booking->check_in : null;
-    $original_check_out = $original_booking ? $original_booking->check_out : null;
 
-    $response = [];
-  // Check if the booking is an extension or shortening
-    $is_extension = (
-        $original_booking &&
-        strtotime($check_in) == strtotime($original_check_in) &&
-        strtotime($check_out) > strtotime($original_check_out)
-    );
+        // Check for conflicting bookings
+        $original_booking = null;
+        if ($booking_id) {
+            $original_booking = $wpdb->get_row($wpdb->prepare(
+                "SELECT check_in, check_out 
+             FROM {$wpdb->prefix}rvbs_bookings 
+             WHERE id = %d AND post_id = %d",
+                $booking_id,
+                $lot_id
+            ));
 
-    $is_shortening = (
-        $original_booking &&
-        strtotime($check_in) >= strtotime($original_check_in) &&
-        strtotime($check_out) <= strtotime($original_check_out)
-    );
+            if (!$original_booking) {
+                wp_send_json_error('Booking does not exist or is invalid.');
+            }
+        }
 
-    // Adjust dates for buffer
-    $adjusted_check_in = date('Y-m-d', strtotime($check_in) - ($buffer_days * 86400));
-    $adjusted_check_out = date('Y-m-d', strtotime($check_out) + ($buffer_days * 86400));
+        $original_check_in = $original_booking ? $original_booking->check_in : null;
+        $original_check_out = $original_booking ? $original_booking->check_out : null;
 
-    if ($is_extension) {
-        $extended_start = $original_check_out;
-        $extended_end = $check_out;
+        // Check if the booking is an extension or shortening
+        $is_extension = (
+            $original_booking &&
+            strtotime($check_in) == strtotime($original_check_in) &&
+            strtotime($check_out) > strtotime($original_check_out)
+        );
 
-        $adjusted_start = date('Y-m-d', strtotime($extended_start) + ($buffer_days * 86400));
-        $adjusted_end = date('Y-m-d', strtotime($extended_end) + ($buffer_days * 86400));
+        $is_shortening = (
+            $original_booking &&
+            strtotime($check_in) >= strtotime($original_check_in) &&
+            strtotime($check_out) <= strtotime($original_check_out)
+        );
 
-        $query = "
+        // Adjust dates for buffer
+        $adjusted_check_in = date('Y-m-d', strtotime($check_in) - ($buffer_days * 86400));
+        $adjusted_check_out = date('Y-m-d', strtotime($check_out) + ($buffer_days * 86400));
+
+        if ($is_extension) {
+            $extended_start = $original_check_out;
+            $extended_end = $check_out;
+
+            $adjusted_start = date('Y-m-d', strtotime($extended_start) + ($buffer_days * 86400));
+            $adjusted_end = date('Y-m-d', strtotime($extended_end) + ($buffer_days * 86400));
+
+            $query = "
             SELECT COUNT(*) 
             FROM {$wpdb->prefix}rvbs_bookings 
             WHERE post_id = %d 
@@ -219,51 +322,51 @@ class RV_Gantt_Booking_Calendar
             AND NOT (check_out <= %s OR check_in >= %s)
             AND id != %d
         ";
-        $params = [$lot_id, $extended_start, $adjusted_end, $booking_id];
-        $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
+            $params = [$lot_id, $extended_start, $adjusted_end, $booking_id];
+            $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
 
-        if ($conflict > 0) {
-            wp_send_json_error('The extended booking period conflicts with other bookings.');
+            if ($conflict > 0) {
+                wp_send_json_error('The extended booking period conflicts with other bookings.');
+            }
+
+            $extended_days = (strtotime($check_out) - strtotime($original_check_out)) / (60 * 60 * 24);
+            $response['message'] = "Booking extended by {$extended_days} day(s), now until {$check_out}.";
+            $response['booking_status'] = 'extended';
+
+            wp_send_json_success($response);
         }
 
-        $extended_days = (strtotime($check_out) - strtotime($original_check_out)) / (60 * 60 * 24);
-        $response['message'] = "Booking extended by {$extended_days} day(s), now until {$check_out}.";
-        $response['booking_status'] = 'extended';
+        // If shortening or moving dates
+        if (!$is_shortening) {
+            $query = "
+            SELECT COUNT(*) 
+            FROM {$wpdb->prefix}rvbs_bookings 
+            WHERE post_id = %d 
+            AND status IN ('pending', 'confirmed')
+            AND NOT (check_out <= %s OR check_in >= %s)
+            AND id != %d
+        ";
+            $params = [$lot_id, $adjusted_check_in, $adjusted_check_out, $booking_id];
+            $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
+
+            if ($conflict > 0) {
+                wp_send_json_error('Selected dates conflict with other bookings.');
+            }
+        }
+
+        if ($is_shortening) {
+            $response['message'] = "Booking shortened, now ends on {$check_out}.";
+            $response['booking_status'] = 'shortened';
+        } else {
+            $response['message'] = "Booking updated to new date range: {$check_in} to {$check_out}.";
+            $response['booking_status'] = 'extended';
+        }
 
         wp_send_json_success($response);
     }
 
-    // If shortening or moving dates
-    if (!$is_shortening) {
-        $query = "
-            SELECT COUNT(*) 
-            FROM {$wpdb->prefix}rvbs_bookings 
-            WHERE post_id = %d 
-            AND status IN ('pending', 'confirmed')
-            AND NOT (check_out <= %s OR check_in >= %s)
-            AND id != %d
-        ";
-        $params = [$lot_id, $adjusted_check_in, $adjusted_check_out, $booking_id];
-        $conflict = $wpdb->get_var($wpdb->prepare($query, ...$params));
 
-        if ($conflict > 0) {
-            wp_send_json_error('Selected dates conflict with other bookings.');
-        }
-    }
-
-    if ($is_shortening) {
-        $response['message'] = "Booking shortened, now ends on {$check_out}.";
-        $response['booking_status'] = 'shortened';
-    } else {
-        $response['message'] = "Booking updated to new date range: {$check_in} to {$check_out}.";
-        $response['booking_status'] = 'extended';
-    }
-
-    wp_send_json_success($response);
-}
-
-    
-    
+    // old logic workigin on this function
 
 
     public function render_admin_page()
@@ -346,17 +449,29 @@ class RV_Gantt_Booking_Calendar
                             <input type="text" name="check_out" id="check_out" class="rvbs-date-picker" required>
                             <label for="total_price">Total Price:</label>
                             <input type="number" step="0.01" name="total_price" id="total_price" readonly>
+
+                            <!-- NEW Booking Status Field -->
+                            <label for="booking_status">Booking Status:</label>
+                            <select name="booking_status" id="booking_status" required>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="cancelled">Canceled</option>
+                            </select>
+
+
                             <div id="availability-message"></div>
                             <button type="submit">Save Booking</button>
                             <button type="button" id="close-modal">Close</button>
                         </form>
                     </div>
                 </div>
-                
+
             </div>
         </div>
         </div>
 <?php
+
+
     }
 
     public function render_calendar_grid($month, $year, $lot_id = '', $status = '')
@@ -451,6 +566,7 @@ class RV_Gantt_Booking_Calendar
 
             $lots_data[] = $lot_data;
         }
+        // var_dump($lots_data  );
 
         // Prepare days data with today highlight
         $days_data = [];
@@ -510,12 +626,13 @@ class RV_Gantt_Booking_Calendar
         $check_in = sanitize_text_field($_POST['check_in']);
         $check_out = sanitize_text_field($_POST['check_out']);
         $total_price = floatval($_POST['total_price']);
-        $status = sanitize_text_field($_POST['status']) ?: 'pending';
+        $status = isset($_POST['status'])?  sanitize_text_field($_POST['status'])  : 'pending';
 
+     
         $post_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}rvbs_rv_lots WHERE post_id = %d", $lot_id));
 
         // Validate inputs
-        if (!$lot_id) {
+        if (!$lot_id) { 
             wp_send_json_error('Lot ID is required.');
         }
         if (!$check_in || !DateTime::createFromFormat('Y-m-d', $check_in)) {
@@ -649,6 +766,9 @@ class RV_Gantt_Booking_Calendar
             if (!$total_price) {
                 wp_send_json_error('Total price is required.');
             }
+            if (!in_array($status, ['pending', 'confirmed', 'cancelled'])) {
+                wp_send_json_error('Invalid booking status.');
+            }
         }
 
         // Insert booking
@@ -771,20 +891,20 @@ class RV_Gantt_Booking_Calendar
     {
         check_ajax_referer('rvbs_gantt_nonce', 'nonce');
         global $wpdb;
-    
+
         $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
         $booking_post_id = isset($_POST['booking_post_id']) ? intval($_POST['booking_post_id']) : 0;
-    
+
         if (!$booking_id && !$booking_post_id) {
             wp_send_json_error('Invalid booking ID');
         }
-    
+
         $booking = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}rvbs_bookings WHERE id = %d AND post_id = %d",
             $booking_id,
             $booking_post_id
         ));
-    
+
         if ($booking) {
             // Enrich with user data
             $user = get_userdata($booking->user_id);
@@ -792,13 +912,12 @@ class RV_Gantt_Booking_Calendar
                 $booking->user_name  = $user->display_name;
                 $booking->user_email = $user->user_email;
             }
-    
+
             wp_send_json_success($booking);
         } else {
             wp_send_json_error('Booking not found');
         }
     }
-    
 }
 
 // Initialize the plugin
