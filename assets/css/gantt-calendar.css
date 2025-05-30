@@ -5,6 +5,12 @@
     box-sizing: border-box;
 }
 
+/*  set the calender next month day colr #000 */
+.flatpickr-day.nextMonthDay:not(.flatpickr-disabled):not(.notAllowed) {
+	color: #000 !important;
+}
+
+
 .calendar-navigation {
     margin-bottom: 20px;
     text-align: center;
