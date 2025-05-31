@@ -60,6 +60,15 @@ class RV_Gantt_Booking_Calendar
             'dashicons-calendar-alt',
             30
         );
+        // ad submenu page for the booking calendar search and filter
+        add_submenu_page(
+            'rv-booking-calendar',
+            'Search Bookings',
+            'Search Bookings',
+            'manage_options',
+            'rv-booking-calendar-search',
+            array($this, 'render_admin_page')
+        );
     }
 
     // check unavailable dates for the booking
@@ -106,25 +115,40 @@ class RV_Gantt_Booking_Calendar
     }
     public function enqueue_scripts($hook)
     {
-        if ($hook !== 'toplevel_page_rv-booking-calendar') {
+
+        if (!is_admin()) {
             return;
         }
 
-        // Enqueue styles
-        wp_enqueue_style('rvbs-gantt-css', plugin_dir_url(__FILE__) . './assets/css/gantt-calendar.css', array(), '2.4.8');
+        // Check the current admin page slug
+        $current_page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
 
-        // Enqueue scripts
-        wp_enqueue_script('rvbs-gantt-js', plugin_dir_url(__FILE__) . './assets/js/gantt-calendar.js', array('jquery'), '2.4.8', true);
-        wp_localize_script('rvbs-gantt-js', 'rvbs_gantt', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('rvbs_gantt_nonce'),
-        ));
+
+        if ($hook == 'toplevel_page_rv-booking-calendar') {
 
 
 
-        // enqueue_flatpicker cdn 
-        wp_enqueue_script('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', array('jquery'), '4.6.13', true);
-        wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', array(), '4.6.13');
+            // Enqueue styles
+            wp_enqueue_style('rvbs-gantt-css', plugin_dir_url(__FILE__) . './assets/css/gantt-calendar.css', array(), '2.4.8');
+
+            // Enqueue scripts
+            wp_enqueue_script('rvbs-gantt-js', plugin_dir_url(__FILE__) . './assets/js/gantt-calendar.js', array('jquery'), '2.4.8', true);
+            wp_localize_script('rvbs-gantt-js', 'rvbs_gantt', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rvbs_gantt_nonce'),
+            ));
+
+
+
+            // enqueue_flatpicker cdn 
+            wp_enqueue_script('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', array('jquery'), '4.6.13', true);
+            wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', array(), '4.6.13');
+        }
+
+        if ($current_page == 'rv-booking-calendar-search') {
+            // Enqueue styles
+          
+        }
     }
 
     // old logic workigin on this function
@@ -521,6 +545,7 @@ class RV_Gantt_Booking_Calendar
             $bookings_by_lot[$booking->lot_id][] = $booking;
         }
 
+
         // Prepare data to return
         $lots_data = [];
         $serial = 1;
@@ -539,6 +564,7 @@ class RV_Gantt_Booking_Calendar
             // Add bookings for this lot
             if (isset($bookings_by_lot[$lot->id])) {
                 foreach ($bookings_by_lot[$lot->id] as $booking) {
+
                     $check_in = new DateTime($booking->check_in);
                     $check_out = new DateTime($booking->check_out);
                     $month_start = new DateTime("$year-$month-01");
@@ -626,13 +652,13 @@ class RV_Gantt_Booking_Calendar
         $check_in = sanitize_text_field($_POST['check_in']);
         $check_out = sanitize_text_field($_POST['check_out']);
         $total_price = floatval($_POST['total_price']);
-        $status = isset($_POST['status'])?  sanitize_text_field($_POST['status'])  : 'pending';
+        $status = isset($_POST['status']) ?  sanitize_text_field($_POST['status'])  : 'pending';
 
-     
+
         $post_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}rvbs_rv_lots WHERE post_id = %d", $lot_id));
 
         // Validate inputs
-        if (!$lot_id) { 
+        if (!$lot_id) {
             wp_send_json_error('Lot ID is required.');
         }
         if (!$check_in || !DateTime::createFromFormat('Y-m-d', $check_in)) {
