@@ -585,7 +585,7 @@ function fetchUnavailableDates(lotId) {
 } else {
   console.warn("Check-in or check-out date missing", $(this).get(0).outerHTML);
 }
-
+    $("#booking-modal").show();
 
     $.ajax({
       url: rvbs_gantt.ajax_url,
@@ -597,6 +597,7 @@ function fetchUnavailableDates(lotId) {
         nonce: rvbs_gantt.nonce,
       },
       success: function (response) {
+      
         if (response.success) {
           const booking = response.data;
 
@@ -634,8 +635,7 @@ function fetchUnavailableDates(lotId) {
             `Total Price: $${parseFloat(booking.total_price).toFixed(2)}`
           );
 
-          $("#booking-modal").show();
-          checkAvailability();
+          // checkAvailability();
 
           // Fetch unavailable dates
           if (lotId) {
