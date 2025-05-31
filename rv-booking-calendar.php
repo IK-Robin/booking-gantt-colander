@@ -147,7 +147,21 @@ class RV_Gantt_Booking_Calendar
 
         if ($current_page == 'rv-booking-calendar-search') {
             // Enqueue styles
-          
+          // Enqueue styles
+            wp_enqueue_style('rvbs-gantt-css-search-page', plugin_dir_url(__FILE__) . './assets/css/gantt-calendar-search-page.css', array(), '2.4.8');
+
+            // Enqueue scripts
+            wp_enqueue_script('rvbs-gantt-js-search-page', plugin_dir_url(__FILE__) . 'assets/js/gantt-calendar-search-page.js', array('jquery'), '2.4.8', true);
+            wp_localize_script('rvbs-gantt-js-search-page', 'rvbs_gantt', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('rvbs_gantt_nonce'),
+            ));
+
+
+
+            // enqueue_flatpicker cdn 
+            wp_enqueue_script('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', array('jquery'), '4.6.13', true);
+            wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', array(), '4.6.13');
         }
     }
 
