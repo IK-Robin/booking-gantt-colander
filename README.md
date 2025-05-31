@@ -23,3 +23,5 @@ here is the condition
 
 
 8. add search functionality to the hole calander and search by date and by name of the user and by status of the booking and by lot name and by lot id and by lot type and by lot price and by lot capacity and by lot category and and date rang  
+
+9. load all data inside the data attribut to improve the loading spreed in font end only and load the data when the user click on the date in the calender and load the data 
