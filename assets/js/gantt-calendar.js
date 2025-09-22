@@ -562,11 +562,23 @@ function fetchUnavailableDates(lotId) {
 
   // Edit booking
   $(document).on("click", ".booked", function () {
+
+    // remove the error message first if there is any
+    $(".error-message").remove();
+
     const bookingId = $(this).data("booking-id");
     const booking_post_id = $(this).data("booking-post-id");
     const checkInDate = $(this).data("check-in");
     const checkOutDate = $(this).data("check-out");
-    console.log("Edit booking - ID:", bookingId, "Check-in:", checkInDate, "Check-out:", checkOutDate);
+    const booking_status = $(this).data("status");
+    console.log("Edit booking - ID:", bookingId, "Check-in:", checkInDate, "Check-out:", checkOutDate,'Status:',booking_status);
+
+
+    // add the booking status immediately when click on the edit button booking block 
+    $("#booking_status").val(booking_status);
+       $("#check_in").val(checkInDate);
+          $("#check_out").val(checkOutDate);
+
 
     is_edit_booking = true;
     is_add_new_booking = false;
@@ -614,10 +626,10 @@ function fetchUnavailableDates(lotId) {
           $("#user_search").val(
             booking.user_name + " (" + booking.user_email + ")"
           );
-          $("#check_in").val(booking.check_in);
-          $("#check_out").val(booking.check_out);
+       
           $("#total_price").val(booking.total_price);
-          $("#status").val(booking.status);
+          
+         
 
           // Update Flatpickr with AJAX response dates
           // datePickers.forEach((picker) => {
@@ -653,11 +665,33 @@ function fetchUnavailableDates(lotId) {
   });
 
   // Close edit modal
-  $(document).on("click", "#edit-close-modal", function () {
-    $("#booking-modal").hide();
-    is_edit_booking = false;
-    is_add_new_booking = false;
+$(document).on("click", "#close-modal", function (e) {
+  e.preventDefault();
+
+  const $modal = $("#booking-modal");
+
+  // reset form fields
+  const form = $modal.find("form")[0];
+  if (form) form.reset();
+
+  // clear errors/messages & search boxes
+  $modal.find(".error-message").remove();
+  $modal.find("#user-search-results").hide().empty();
+  $modal.find("#new-user-fields").hide();
+
+  // if using flatpickr, clear values (optional)
+  $modal.find(".rvbs-date-picker").each(function () {
+    if (this._flatpickr) this._flatpickr.clear();
+    else $(this).val("");
   });
+
+  $modal.hide();
+
+  is_edit_booking = false;
+  is_add_new_booking = false;
+});
+
+
 
   // Navigation
   $(".prev-month, .next-month").on("click", function () {
@@ -815,6 +849,7 @@ function renderCalendarGrid(data) {
                                 .attr("data-check-out", booking.check_out)
                                 .attr("data-start-day", booking.start_day)
                                 .attr("data-end-day", booking.end_day)
+                                .attr("data-status", booking.status)
                                 .css("width", `${remainingWidth}px`)
                                 .css("left", `${remainingLeft}px`)
                                 .attr("data-title", bookingInfo);
