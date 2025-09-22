@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Booking Plugin Dashboard</title>
+    <!-- Include Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Include Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Flatpickr for date range picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        /* Custom styles for specific overrides */
+        body {
+            background-color: #f3f4f6;
+        }
+        .chart-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .flatpickr-input {
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto p-4">
+        <!-- Filters Section (Moved to Top) -->
+        <section class="mb-6 bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Filters</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- Date Range Filter -->
+                <div>
+                    <label for="dateRange" class="block text-sm font-medium text-gray-700">Date Range</label>
+                    <input id="dateRange" class="flatpickr-input" placeholder="Select date range" />
+                </div>
+                <!-- Service Filter -->
+                <div>
+                    <label for="serviceFilter" class="block text-sm font-medium text-gray-700">Service</label>
+                    <select id="serviceFilter" class="w-full p-2 border rounded-md">
+                        <option value="all">All Services</option>
+                        <option value="Service A">Service A</option>
+                        <option value="Service B">Service B</option>
+                        <option value="Service C">Service C</option>
+                    </select>
+                </div>
+                <!-- Status Filter -->
+                <div>
+                    <label for="statusFilter" class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="statusFilter" class="w-full p-2 border rounded-md">
+                        <option value="all">All Statuses</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="pending">Pending</option>
+                        <option value="canceled">Canceled</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <!-- Export Button -->
+                <div class="flex items-end">
+                    <button onclick="exportReport()" class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Export Report</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Key Metrics Section -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Total Bookings</h3>
+                <p id="totalBookings" class="text-2xl font-bold text-gray-800">120</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Revenue Generated</h3>
+                <p id="revenue" class="text-2xl font-bold text-gray-800">$5,000</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Upcoming Bookings</h3>
+                <p id="upcomingBookings" class="text-2xl font-bold text-gray-800">15</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Conversion Rate</h3>
+                <p id="conversionRate" class="text-2xl font-bold text-gray-800">85%</p>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <!-- Booking Status Pie Chart -->
+            <div class="chart-container p-6">
+                <canvas id="bookingStatusChart"></canvas>
+            </div>
+            <!-- Booking Trends Line Chart -->
+            <div class="chart-container p-6">
+                <canvas id="bookingTrendsChart"></canvas>
+            </div>
+            <!-- Revenue by Service Bar Chart -->
+            <div class="chart-container p-6">
+                <canvas id="revenueChart"></canvas>
+            </div>
+            <!-- Resource Utilization Doughnut Chart -->
+            <div class="chart-container p-6">
+                <canvas id="resourceUtilizationChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Recent Bookings Table -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Recent Bookings</h2>
+            <div class="table-container">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-3">Booking ID</th>
+                            <th class="p-3">Customer</th>
+                            <th class="p-3">Service</th>
+                            <th class="p-3">Date</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Amount</th>
+                            <th class="p-3">Source</th>
+                            <th class="p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Alerts Section -->
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Alerts</h2>
+            <div id="alertsContainer" class="space-y-4">
+                <div class="bg-yellow-100 p-4 rounded-md">Pending Approval: Booking #1234 needs review.</div>
+                <div class="bg-yellow-100 p-4 rounded-md">Low Availability: Service A slots almost full for tomorrow.</div>
+                <div class="bg-yellow-100 p-4 rounded-md">Payment Issue: Booking #1235 payment failed.</div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Sample Data for Demonstration
+        const bookingsData = [
+            { id: "B001", customer: "John Doe", service: "Service A", date: "2025-07-29", status: "Pending", amount: 100, source: "Website" },
+            { id: "B002", customer: "Jane Smith", service: "Service B", date: "2025-07-30", status: "Confirmed", amount: 150, source: "Mobile App" },
+            { id: "B003", customer: "Alice Brown", service: "Service C", date: "2025-07-31", status: "Canceled", amount: 80, source: "Website" },
+            { id: "B004", customer: "Bob Johnson", service: "Service A", date: "2025-08-01", status: "Completed", amount: 120, source: "Third-Party" }
+        ];
+
+        // Initialize Flatpickr for Date Range Picker
+        flatpickr("#dateRange", {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            defaultDate: ["2025-07-28", "2025-08-03"],
+            onChange: filterBookings
+        });
+
+        // Initialize Booking Status Pie Chart
+        const bookingStatusChart = new Chart(document.getElementById('bookingStatusChart'), {
+            type: 'pie',
+            data: {
+                labels: ['Confirmed', 'Pending', 'Canceled', 'Completed'],
+                datasets: [{
+                    data: [60, 20, 10, 10],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#FF6384', '#4BC0C0']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Booking Status Distribution' }
+                }
+            }
+        });
+
+        // Initialize Booking Trends Line Chart
+        const bookingTrendsChart = new Chart(document.getElementById('bookingTrendsChart'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Bookings',
+                    data: [50, 60, 70, 65, 80, 90, 85],
+                    borderColor: '#36A2EB',
+                    fill: false
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Weekly Booking Trends' }
+                }
+            }
+        });
+
+        // Initialize Revenue by Service Bar Chart
+        const revenueChart = new Chart(document.getElementById('revenueChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Service A', 'Service B', 'Service C'],
+                datasets: [{
+                    label: 'Revenue ($)',
+                    data: [5000, 3000, 2000],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#4BC0C0']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Revenue by Service' }
+                }
+            }
+        });
+
+        // Initialize Resource Utilization Doughnut Chart
+        const resourceUtilizationChart = new Chart(document.getElementById('resourceUtilizationChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Room A', 'Room B', 'Staff A', 'Staff B'],
+                datasets: [{
+                    label: 'Utilization (%)',
+                    data: [75, 60, 80, 45],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#4BC0C0', '#FF6384']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Resource Utilization' }
+                }
+            }
+        });
+
+        // Populate Recent Bookings Table
+        function populateBookingsTable(data) {
+            const tableBody = document.getElementById('bookingsTable');
+            tableBody.innerHTML = '';
+            data.forEach(booking => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-3">${booking.id}</td>
+                    <td class="p-3">${booking.customer}</td>
+                    <td class="p-3">${booking.service}</td>
+                    <td class="p-3">${booking.date}</td>
+                    <td class="p-3">${booking.status}</td>
+                    <td class="p-3">$${booking.amount}</td>
+                    <td class="p-3">${booking.source}</td>
+                    <td class="p-3">
+                        <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" onclick="approveBooking('${booking.id}')">Approve</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onclick="cancelBooking('${booking.id}')">Cancel</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Filter Bookings
+        function filterBookings() {
+            const dateRange = document.getElementById('dateRange').value.split(' to ');
+            const service = document.getElementById('serviceFilter').value;
+            const status = document.getElementById('statusFilter').value;
+
+            let filteredData = bookingsData;
+
+            // Filter by service
+            if (service !== 'all') {
+                filteredData = filteredData.filter(booking => booking.service === service);
+            }
+
+            // Filter by status
+            if (status !== 'all') {
+                filteredData = filteredData.filter(booking => booking.status.toLowerCase() === status);
+            }
+
+            // Filter by date range
+            if (dateRange.length === 2) {
+                const startDate = new Date(dateRange[0]);
+                const endDate = new Date(dateRange[1]);
+                filteredData = filteredData.filter(booking => {
+                    const bookingDate = new Date(booking.date);
+                    return bookingDate >= startDate && bookingDate <= endDate;
+                });
+            }
+
+            // Update key metrics based on filtered data
+            updateKeyMetrics(filteredData);
+            populateBookingsTable(filteredData);
+        }
+
+        // Update Key Metrics
+        function updateKeyMetrics(data) {
+            document.getElementById('totalBookings').textContent = data.length;
+            document.getElementById('revenue').textContent = `$${data.reduce((sum, booking) => sum + booking.amount, 0)}`;
+            document.getElementById('upcomingBookings').textContent = data.filter(booking => new Date(booking.date) > new Date()).length;
+            document.getElementById('conversionRate').textContent = data.length > 0 ? `${Math.round((data.filter(b => b.status === 'Confirmed').length / data.length) * 100)}%` : '0%';
+        }
+
+        // Approve Booking
+        function approveBooking(id) {
+            alert(`Booking ${id} approved!`);
+            const booking = bookingsData.find(b => b.id === id);
+            if (booking) booking.status = 'Confirmed';
+            filterBookings();
+        }
+
+        // Cancel Booking
+        function cancelBooking(id) {
+            alert(`Booking ${id} canceled!`);
+            const booking = bookingsData.find(b => b.id === id);
+            if (booking) booking.status = 'Canceled';
+            filterBookings();
+        }
+
+        // Export Report as CSV
+        function exportReport() {
+            const headers = ['Booking ID', 'Customer', 'Service', 'Date', 'Status', 'Amount', 'Source'];
+            const rows = bookingsData.map(booking => [
+                booking.id,
+                booking.customer,
+                booking.service,
+                booking.date,
+                booking.status,
+                booking.amount,
+                booking.source
+            ]);
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'bookings_report.csv';
+            link.click();
+        }
+
+        // Event Listeners for Filters
+        document.getElementById('serviceFilter').addEventListener('change', filterBookings);
+        document.getElementById('statusFilter').addEventListener('change', filterBookings);
+
+        // Initial Table Population and Metrics Update
+        filterBookings();
+    </script>
+</body>
+</html>

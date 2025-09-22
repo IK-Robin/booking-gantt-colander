@@ -800,6 +800,7 @@ function renderCalendarGrid(data) {
 
                     const bookingColor = booking.is_expired ? "#d3d3d3" : getRandomColor();
 
+                    
                     const remainingStartDay = booking.start_day;
                     if (remainingStartDay <= booking.end_day) {
                         setTimeout(() => {
@@ -817,9 +818,10 @@ function renderCalendarGrid(data) {
                                 .css("width", `${remainingWidth}px`)
                                 .css("left", `${remainingLeft}px`)
                                 .attr("data-title", bookingInfo);
-                            $bookingDiv.css("background-color", bookingColor);
+                            $bookingDiv.css("background-color", booking.color_hex);
                             $bookingDiv.append(`<span class="booking-dates">${booking.check_in} to ${booking.check_out}</span>`);
                             $dayCell.append($bookingDiv);
+                            console.log(booking);
                         }, 1);
                     }
                 }

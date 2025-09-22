@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RV Park Booking Dashboard</title>
+    <!-- Include Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Include Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Flatpickr for date range picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        /* Custom styles for specific overrides */
+        body {
+            background-color: #f3f4f6;
+        }
+        .chart-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .flatpickr-input {
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            width: 100%;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        /* Ensure table headers are sticky */
+        .table-container thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f3f4f6;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto p-4">
+        <!-- Filters Section -->
+        <section class="mb-6 bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Filters</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                    <label for="dateRange" class="block text-sm font-medium text-gray-700">Date Range</label>
+                    <input id="dateRange" class="flatpickr-input" placeholder="Select date range" />
+                </div>
+                <div>
+                    <label for="siteFilter" class="block text-sm font-medium text-gray-700">Site Type</label>
+                    <select id="siteFilter" class="w-full p-2 border rounded-md">
+                        <option value="all">All Site Types</option>
+                        <option value="Pull-Through">Pull-Through</option>
+                        <option value="Back-In">Back-In</option>
+                        <option value="Tent">Tent</option>
+                        <option value="Cabin">Cabin</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="statusFilter" class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="statusFilter" class="w-full p-2 border rounded-md">
+                        <option value="all">All Statuses</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Checked-In">Checked-In</option>
+                        <option value="Checked-Out">Checked-Out</option>
+                        <option value="No-Show">No-Show</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sourceFilter" class="block text-sm font-medium text-gray-700">Source</label>
+                    <select id="sourceFilter" class="w-full p-2 border rounded-md">
+                        <option value="all">All Sources</option>
+                        <option value="Website">Website</option>
+                        <option value="Phone">Phone</option>
+                        <option value="Walk-In">Walk-In</option>
+                        <option value="OTA">OTA</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="exportReport()" class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Export Report</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Key Metrics Section -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Total Reservations</h3>
+                <p id="totalBookings" class="text-2xl font-bold text-gray-800">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Revenue Generated</h3>
+                <p id="revenue" class="text-2xl font-bold text-gray-800">$0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Occupancy Rate</h3>
+                <p id="occupancyRate" class="text-2xl font-bold text-gray-800">0%</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-sm font-medium text-gray-500">Upcoming Arrivals</h3>
+                <p id="upcomingArrivals" class="text-2xl font-bold text-gray-800">0</p>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div class="chart-container p-6">
+                <canvas id="bookingStatusChart"></canvas>
+            </div>
+            <div class="chart-container p-6">
+                <canvas id="bookingTrendsChart"></canvas>
+            </div>
+            <div class="chart-container p-6">
+                <canvas id="revenueChart"></canvas>
+            </div>
+            <div class="chart-container p-6">
+                <canvas id="sitePopularityChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Recent Reservations Table -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Recent Reservations</h2>
+            <div class="table-container">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-3">Res. ID</th>
+                            <th class="p-3">Customer</th>
+                            <th class="p-3">Site</th>
+                            <th class="p-3">RV Type</th>
+                            <th class="p-3">Occupants</th>
+                            <th class="p-3">Check-In</th>
+                            <th class="p-3">Check-Out</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Amount</th>
+                            <th class="p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Alerts Section -->
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Alerts</h2>
+            <div id="alertsContainer" class="space-y-4"></div>
+        </section>
+
+        <!-- Modal for Reservation Details -->
+        <div id="reservationModal" class="modal">
+            <div class="modal-content">
+                <h2 class="text-xl font-semibold mb-4">Reservation Details</h2>
+                <div id="modalContent"></div>
+                <button class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample Data for RV Park Reservations
+        const reservationsData = [
+            {
+                id: "RV001",
+                status: "Confirmed",
+                checkIn: "2025-07-29T14:00",
+                checkOut: "2025-08-01T11:00",
+                nights: 3,
+                dateBooked: "2025-07-01",
+                source: "Website",
+                customer: {
+                    fullName: "John Doe",
+                    email: "john.doe@example.com",
+                    phone: "555-123-4567",
+                    address: "123 Main St, Anytown, USA",
+                    emergencyContact: "Jane Doe (555-987-6543)",
+                    rvClub: "Good Sam",
+                    specialRequests: "Near lake view",
+                    returningGuest: true
+                },
+                rv: {
+                    type: "Class A",
+                    length: 35,
+                    slideOuts: 2,
+                    towVehicle: true,
+                    licensePlate: "ABC123",
+                    pets: true,
+                    generator: false
+                },
+                site: {
+                    number: "A12",
+                    type: "Pull-Through",
+                    hookups: "Full Hookup",
+                    amperage: "50A",
+                    amenities: ["Fire Pit", "Picnic Table"],
+                    status: "Reserved",
+                    mapLink: "https://example.com/map/A12"
+                },
+                occupants: {
+                    adults: 2,
+                    children: 1,
+                    pets: 1,
+                    additionalGuests: 0,
+                    additionalVehicles: 1
+                },
+                payment: {
+                    total: 300,
+                    deposit: 100,
+                    balance: 200,
+                    status: "Partially Paid",
+                    method: "Credit Card",
+                    transactionId: "TX123456",
+                    taxesFees: 30,
+                    discount: 10
+                },
+                history: {
+                    created: "2025-07-01T10:00",
+                    lastModified: "2025-07-02T09:00",
+                    createdBy: "Guest",
+                    notes: "Requested early check-in",
+                    changeLog: ["Site changed from A10 to A12"]
+                },
+                communication: {
+                    confirmationSent: true,
+                    reminderSent: false,
+                    cancellationSent: false,
+                    messageLog: ["Sent welcome email on 2025-07-01"]
+                },
+                addons: {
+                    firewood: true,
+                    propane: false,
+                    laundry: false,
+                    wifi: true,
+                    rentals: [],
+                    lateCheckout: false,
+                    dumpStation: true,
+                    events: []
+                },
+                extras: {
+                    weather: "Sunny, 75°F",
+                    attractions: ["Lake Trail", "Local Festival"],
+                    qrCode: "https://example.com/checkin/RV001",
+                    inspection: "Passed"
+                }
+            },
+           
+           
+            {
+                id: "RV055",
+                status: "Confirmed",
+                checkIn: "2025-07-29T14:00",
+                checkOut: "2025-08-01T11:00",
+                nights: 3,
+                dateBooked: "2025-07-01",
+                source: "Website",
+                customer: {
+                    fullName: "John Doe",
+                    email: "john.doe@example.com",
+                    phone: "555-123-4567",
+                    address: "123 Main St, Anytown, USA",
+                    emergencyContact: "Jane Doe (555-987-6543)",
+                    rvClub: "Good Sam",
+                    specialRequests: "Near lake view",
+                    returningGuest: true
+                },
+                rv: {
+                    type: "Class b",
+                    length: 35,
+                    slideOuts: 2,
+                    towVehicle: true,
+                    licensePlate: "ABC123",
+                    pets: true,
+                    generator: false
+                },
+                site: {
+                    number: "A13",
+                    type: "Pull-Through",
+                    hookups: "Full Hookup",
+                    amperage: "50A",
+                    amenities: ["Fire Pit", "Picnic Table"],
+                    status: "Reserved",
+                    mapLink: "https://example.com/map/A12"
+                },
+                occupants: {
+                    adults: 2,
+                    children: 1,
+                    pets: 1,
+                    additionalGuests: 0,
+                    additionalVehicles: 1
+                },
+                payment: {
+                    total: 300,
+                    deposit: 100,
+                    balance: 200,
+                    status: "Partially Paid",
+                    method: "Credit Card",
+                    transactionId: "TX123456",
+                    taxesFees: 30,
+                    discount: 10
+                },
+                history: {
+                    created: "2025-07-01T10:00",
+                    lastModified: "2025-07-02T09:00",
+                    createdBy: "Guest",
+                    notes: "Requested early check-in",
+                    changeLog: ["Site changed from A10 to A12"]
+                },
+                communication: {
+                    confirmationSent: true,
+                    reminderSent: false,
+                    cancellationSent: false,
+                    messageLog: ["Sent welcome email on 2025-07-01"]
+                },
+                addons: {
+                    firewood: true,
+                    propane: false,
+                    laundry: false,
+                    wifi: true,
+                    rentals: [],
+                    lateCheckout: false,
+                    dumpStation: true,
+                    events: []
+                },
+                extras: {
+                    weather: "Sunny, 75°F",
+                    attractions: ["Lake Trail", "Local Festival"],
+                    qrCode: "https://example.com/checkin/RV001",
+                    inspection: "Passed"
+                }
+            },
+           
+           
+           
+            {
+                id: "RV002",
+                status: "Pending",
+                checkIn: "2025-07-30T12:00",
+                checkOut: "2025-08-02T11:00",
+                nights: 3,
+                dateBooked: "2025-07-05",
+                source: "OTA",
+                customer: {
+                    fullName: "Jane Smith",
+                    email: "jane.smith@example.com",
+                    phone: "555-765-4321",
+                    address: "456 Oak St, Anytown, USA",
+                    emergencyContact: "Bob Smith (555-123-9876)",
+                    rvClub: "Passport America",
+                    specialRequests: "Pet-friendly site",
+                    returningGuest: false
+                },
+                rv: {
+                    type: "Travel Trailer",
+                    length: 28,
+                    slideOuts: 1,
+                    towVehicle: false,
+                    licensePlate: "XYZ789",
+                    pets: true,
+                    generator: true
+                },
+                site: {
+                    number: "B5",
+                    type: "Back-In",
+                    hookups: "Partial",
+                    amperage: "30A",
+                    amenities: ["BBQ"],
+                    status: "Reserved",
+                    mapLink: "https://example.com/map/B5"
+                },
+                occupants: {
+                    adults: 2,
+                    children: 0,
+                    pets: 2,
+                    additionalGuests: 0,
+                    additionalVehicles: 0
+                },
+                payment: {
+                    total: 180,
+                    deposit: 0,
+                    balance: 180,
+                    status: "Not Paid",
+                    method: "Online Payment",
+                    transactionId: "",
+                    taxesFees: 20,
+                    discount: 0
+                },
+                history: {
+                    created: "2025-07-05T14:00",
+                    lastModified: "2025-07-05T14:00",
+                    createdBy: "Guest",
+                    notes: "",
+                    changeLog: []
+                },
+                communication: {
+                    confirmationSent: false,
+                    reminderSent: false,
+                    cancellationSent: false,
+                    messageLog: []
+                },
+                addons: {
+                    firewood: false,
+                    propane: true,
+                    laundry: false,
+                    wifi: false,
+                    rentals: ["Kayak"],
+                    lateCheckout: false,
+                    dumpStation: false,
+                    events: ["Campfire Night"]
+                },
+                extras: {
+                    weather: "Cloudy, 70°F",
+                    attractions: ["Nature Hike"],
+                    qrCode: "https://example.com/checkin/RV002",
+                    inspection: "Pending"
+                }
+            },
+            {
+                id: "RV003",
+                status: "Checked-In",
+                checkIn: "2025-07-28T15:00",
+                checkOut: "2025-07-31T11:00",
+                nights: 3,
+                dateBooked: "2025-06-20",
+                source: "Phone",
+                customer: {
+                    fullName: "Alice Brown",
+                    email: "alice.brown@example.com",
+                    phone: "555-456-7890",
+                    address: "789 Pine St, Anytown, USA",
+                    emergencyContact: "Tom Brown (555-321-6547)",
+                    rvClub: "None",
+                    specialRequests: "Quiet area",
+                    returningGuest: true
+                },
+                rv: {
+                    type: "5th Wheel",
+                    length: 40,
+                    slideOuts: 3,
+                    towVehicle: true,
+                    licensePlate: "DEF456",
+                    pets: false,
+                    generator: false
+                },
+                site: {
+                    number: "C3",
+                    type: "Tent",
+                    hookups: "Dry",
+                    amperage: "N/A",
+                    amenities: ["Fire Pit"],
+                    status: "Occupied",
+                    mapLink: "https://example.com/map/C3"
+                },
+                occupants: {
+                    adults: 1,
+                    children: 2,
+                    pets: 0,
+                    additionalGuests: 1,
+                    additionalVehicles: 0
+                },
+                payment: {
+                    total: 150,
+                    deposit: 50,
+                    balance: 100,
+                    status: "Partially Paid",
+                    method: "Cash",
+                    transactionId: "TX789012",
+                    taxesFees: 15,
+                    discount: 5
+                },
+                history: {
+                    created: "2025-06-20T09:00",
+                    lastModified: "2025-07-28T15:00",
+                    createdBy: "Admin",
+                    notes: "Checked-in on time",
+                    changeLog: []
+                },
+                communication: {
+                    confirmationSent: true,
+                    reminderSent: true,
+                    cancellationSent: false,
+                    messageLog: ["Confirmation sent on 2025-06-20", "Reminder sent on 2025-07-27"]
+                },
+                addons: {
+                    firewood: true,
+                    propane: false,
+                    laundry: true,
+                    wifi: true,
+                    rentals: [],
+                    lateCheckout: false,
+                    dumpStation: false,
+                    events: []
+                },
+                extras: {
+                    weather: "Sunny, 80°F",
+                    attractions: ["Beach Access"],
+                    qrCode: "https://example.com/checkin/RV003",
+                    inspection: "Passed"
+                }
+            }
+        ];
+
+        // Initialize Flatpickr for Date Range Picker
+        flatpickr("#dateRange", {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            defaultDate: ["2025-07-28", "2025-08-03"],
+            onChange: filterReservations
+        });
+
+        // Initialize Booking Status Pie Chart (Layered for Site Types)
+        const bookingStatusChart = new Chart(document.getElementById('bookingStatusChart'), {
+            type: 'pie',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Reservation Status by Site Type' }
+                }
+            }
+        });
+
+        // Initialize Booking Trends Line Chart
+        const bookingTrendsChart = new Chart(document.getElementById('bookingTrendsChart'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Reservations',
+                    data: [5, 7, 10, 8, 12, 15, 14],
+                    borderColor: '#36A2EB',
+                    fill: false
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Weekly Reservation Trends' }
+                }
+            }
+        });
+
+        // Initialize Revenue by Site Type Bar Chart
+        const revenueChart = new Chart(document.getElementById('revenueChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Pull-Through', 'Back-In', 'Tent', 'Cabin'],
+                datasets: [{
+                    label: 'Revenue ($)',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#4BC0C0', '#FF6384']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Revenue by Site Type' }
+                }
+            }
+        });
+
+        // Initialize Site Popularity Chart
+        const sitePopularityChart = new Chart(document.getElementById('sitePopularityChart'), {
+            type: 'bar',
+            data: {
+                labels: ['A12', 'B5', 'C3', 'D1'],
+                datasets: [{
+                    label: 'Bookings',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#4BC0C0', '#FF6384']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Most Popular Sites' }
+                }
+            }
+        });
+
+        // Update Pie Chart for Site Types
+        function updateBookingStatusChart(data) {
+            const siteFilter = document.getElementById('siteFilter').value;
+            if (siteFilter === 'all') {
+                // Layered pie chart for all site types
+                const siteTypes = ['Pull-Through', 'Back-In', 'Tent', 'Cabin'];
+                const statuses = ['Confirmed', 'Pending', 'Cancelled', 'Checked-In', 'Checked-Out', 'No-Show'];
+                const datasets = siteTypes.map((siteType, index) => {
+                    const statusCounts = statuses.map(status => {
+                        return data.filter(r => r.site.type === siteType && r.status === status).length;
+                    });
+                    return {
+                        label: siteType,
+                        data: statusCounts,
+                        backgroundColor: [
+                            `rgba(54, 162, 235, ${0.8 - index * 0.2})`,
+                            `rgba(255, 206, 86, ${0.8 - index * 0.2})`,
+                            `rgba(255, 99, 132, ${0.8 - index * 0.2})`,
+                            `rgba(75, 192, 192, ${0.8 - index * 0.2})`,
+                            `rgba(153, 102, 255, ${0.8 - index * 0.2})`,
+                            `rgba(255, 159, 64, ${0.8 - index * 0.2})`
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 1
+                    };
+                });
+                bookingStatusChart.data.labels = statuses;
+                bookingStatusChart.data.datasets = datasets;
+            } else {
+                // Single pie chart for selected site type
+                const statusCounts = {
+                    Confirmed: 0,
+                    Pending: 0,
+                    Cancelled: 0,
+                    'Checked-In': 0,
+                    'Checked-Out': 0,
+                    'No-Show': 0
+                };
+                data.forEach(r => {
+                    if (r.site.type === siteFilter || siteFilter === 'all') {
+                        statusCounts[r.status]++;
+                    }
+                });
+                bookingStatusChart.data.labels = Object.keys(statusCounts);
+                bookingStatusChart.data.datasets = [{
+                    label: siteFilter,
+                    data: Object.values(statusCounts),
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#FF6384', '#4BC0C0', '#9966FF', '#FF9F40'],
+                    borderColor: '#fff',
+                    borderWidth: 1
+                }];
+            }
+            bookingStatusChart.update();
+        }
+
+        // Populate Recent Reservations Table
+        function populateReservationsTable(data) {
+            const tableBody = document.getElementById('bookingsTable');
+            tableBody.innerHTML = '';
+            data.forEach(reservation => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-3 cursor-pointer text-blue-600 hover:underline" onclick="showReservationDetails('${reservation.id}')">${reservation.id}</td>
+                    <td class="p-3">${reservation.customer.fullName}</td>
+                    <td class="p-3">${reservation.site.number} (${reservation.site.type})</td>
+                    <td class="p-3">${reservation.rv.type} (${reservation.rv.length}ft, ${reservation.rv.slideOuts} slides)</td>
+                    <td class="p-3">${reservation.occupants.adults}A, ${reservation.occupants.children}C, ${reservation.occupants.pets}P</td>
+                    <td class="p-3">${reservation.checkIn}</td>
+                    <td class="p-3">${reservation.checkOut}</td>
+                    <td class="p-3">${reservation.status}</td>
+                    <td class="p-3">$${reservation.payment.total}</td>
+                    <td class="p-3">
+                        <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" onclick="approveReservation('${reservation.id}')">Approve</button>
+                        <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onclick="cancelReservation('${reservation.id}')">Cancel</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Update Key Metrics and Charts
+        function updateMetricsAndCharts(data) {
+            // Update Key Metrics
+            document.getElementById('totalBookings').textContent = data.length;
+            document.getElementById('revenue').textContent = `$${data.reduce((sum, r) => sum + r.payment.total, 0)}`;
+            document.getElementById('occupancyRate').textContent = `${Math.round((data.filter(r => ['Confirmed', 'Checked-In'].includes(r.status)).length / 50) * 100)}%`; // Assuming 50 sites
+            document.getElementById('upcomingArrivals').textContent = data.filter(r => new Date(r.checkIn) > new Date()).length;
+
+            // Update Revenue Chart
+            const siteTypes = ['Pull-Through', 'Back-In', 'Tent', 'Cabin'];
+            const revenueData = siteTypes.map(type => {
+                return data.filter(r => r.site.type === type).reduce((sum, r) => sum + r.payment.total, 0);
+            });
+            revenueChart.data.datasets[0].data = revenueData;
+            revenueChart.update();
+
+            // Update Site Popularity Chart
+            const sitePopularity = {};
+            data.forEach(r => {
+                sitePopularity[r.site.number] = (sitePopularity[r.site.number] || 0) + 1;
+            });
+            sitePopularityChart.data.labels = Object.keys(sitePopularity);
+            sitePopularityChart.data.datasets[0].data = Object.values(sitePopularity);
+            sitePopularityChart.update();
+
+            // Update Booking Status Chart
+            updateBookingStatusChart(data);
+
+            // Update Alerts
+            const alertsContainer = document.getElementById('alertsContainer');
+            alertsContainer.innerHTML = '';
+            data.forEach(r => {
+                if (r.status === 'Pending') {
+                    alertsContainer.innerHTML += `<div class="bg-yellow-100 p-4 rounded-md">Pending Approval: Reservation #${r.id} needs review.</div>`;
+                }
+                if (r.payment.status === 'Not Paid') {
+                    alertsContainer.innerHTML += `<div class="bg-yellow-100 p-4 rounded-md">Payment Issue: Reservation #${r.id} not paid.</div>`;
+                }
+                if (r.site.status === 'Reserved' && new Date(r.checkIn) < new Date(Date.now() + 24 * 60 * 60 * 1000)) {
+                    alertsContainer.innerHTML += `<div class="bg-yellow-100 p-4 rounded-md">Upcoming Arrival: Reservation #${r.id} at ${r.site.number} tomorrow.</div>`;
+                }
+            });
+        }
+
+        // Filter Reservations
+        function filterReservations() {
+            const dateRange = document.getElementById('dateRange').value.split(' to ');
+            const siteType = document.getElementById('siteFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            const source = document.getElementById('sourceFilter').value;
+
+            let filteredData = reservationsData;
+
+            // Filter by site type
+            if (siteType !== 'all') {
+                filteredData = filteredData.filter(r => r.site.type === siteType);
+            }
+
+            // Filter by status
+            if (status !== 'all') {
+                filteredData = filteredData.filter(r => r.status === status);
+            }
+
+            // Filter by source
+            if (source !== 'all') {
+                filteredData = filteredData.filter(r => r.source === source);
+            }
+
+            // Filter by date range (check-in date)
+            if (dateRange.length === 2) {
+                const startDate = new Date(dateRange[0]);
+                const endDate = new Date(dateRange[1]);
+                filteredData = filteredData.filter(r => {
+                    const checkInDate = new Date(r.checkIn);
+                    return checkInDate >= startDate && checkInDate <= endDate;
+                });
+            }
+
+            populateReservationsTable(filteredData);
+            updateMetricsAndCharts(filteredData);
+        }
+
+        // Show Reservation Details in Modal
+        function showReservationDetails(id) {
+            const reservation = reservationsData.find(r => r.id === id);
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <h3 class="text-lg font-semibold mb-2">Reservation #${reservation.id}</h3>
+                <p><strong>Status:</strong> ${reservation.status}</p>
+                <p><strong>Check-In:</strong> ${reservation.checkIn}</p>
+                <p><strong>Check-Out:</strong> ${reservation.checkOut}</p>
+                <p><strong>Nights:</strong> ${reservation.nights}</p>
+                <p><strong>Date Booked:</strong> ${reservation.dateBooked}</p>
+                <p><strong>Source:</strong> ${reservation.source}</p>
+                <h4 class="mt-4 font-semibold">Customer Information</h4>
+                <p><strong>Name:</strong> ${reservation.customer.fullName}</p>
+                <p><strong>Email:</strong> ${reservation.customer.email}</p>
+                <p><strong>Phone:</strong> ${reservation.customer.phone}</p>
+                <p><strong>Address:</strong> ${reservation.customer.address}</p>
+                <p><strong>Emergency Contact:</strong> ${reservation.customer.emergencyContact}</p>
+                <p><strong>RV Club:</strong> ${reservation.customer.rvClub}</p>
+                <p><strong>Special Requests:</strong> ${reservation.customer.specialRequests}</p>
+                <p><strong>Returning Guest:</strong> ${reservation.customer.returningGuest ? 'Yes' : 'No'}</p>
+                <h4 class="mt-4 font-semibold">RV & Vehicle Information</h4>
+                <p><strong>RV Type:</strong> ${reservation.rv.type}</p>
+                <p><strong>RV Length:</strong> ${reservation.rv.length} ft</p>
+                <p><strong>Slide-Outs:</strong> ${reservation.rv.slideOuts}</p>
+                <p><strong>Tow Vehicle:</strong> ${reservation.rv.towVehicle ? 'Yes' : 'No'}</p>
+                <p><strong>License Plate:</strong> ${reservation.rv.licensePlate}</p>
+                <p><strong>Pets:</strong> ${reservation.rv.pets ? 'Yes' : 'No'}</p>
+                <p><strong>Generator:</strong> ${reservation.rv.generator ? 'Yes' : 'No'}</p>
+                <h4 class="mt-4 font-semibold">Occupants</h4>
+                <p><strong>Adults:</strong> ${reservation.occupants.adults}</p>
+                <p><strong>Children:</strong> ${reservation.occupants.children}</p>
+                <p><strong>Pets:</strong> ${reservation.occupants.pets}</p>
+                <p><strong>Additional Guests:</strong> ${reservation.occupants.additionalGuests}</p>
+                <p><strong>Additional Vehicles:</strong> ${reservation.occupants.additionalVehicles}</p>
+                <h4 class="mt-4 font-semibold">Site Information</h4>
+                <p><strong>Site:</strong> ${reservation.site.number} (${reservation.site.type})</p>
+                <p><strong>Hookups:</strong> ${reservation.site.hookups}</p>
+                <p><strong>Amperage:</strong> ${reservation.site.amperage}</p>
+                <p><strong>Amenities:</strong> ${reservation.site.amenities.join(', ')}</p>
+                <p><strong>Status:</strong> ${reservation.site.status}</p>
+                <p><strong>Map Link:</strong> <a href="${reservation.site.mapLink}" target="_blank">View Map</a></p>
+                <h4 class="mt-4 font-semibold">Payment</h4>
+                <p><strong>Total:</strong> $${reservation.payment.total}</p>
+                <p><strong>Deposit:</strong> $${reservation.payment.deposit}</p>
+                <p><strong>Balance:</strong> $${reservation.payment.balance}</p>
+                <p><strong>Status:</strong> ${reservation.payment.status}</p>
+                <p><strong>Method:</strong> ${reservation.payment.method}</p>
+                <p><strong>Transaction ID:</strong> ${reservation.payment.transactionId || 'N/A'}</p>
+                <p><strong>Taxes & Fees:</strong> $${reservation.payment.taxesFees}</p>
+                <p><strong>Discount:</strong> $${reservation.payment.discount}</p>
+                <p><strong>Invoice:</strong> <a href="#" onclick="alert('Download invoice for ${reservation.id}')">Download</a></p>
+                <h4 class="mt-4 font-semibold">History</h4>
+                <p><strong>Created:</strong> ${reservation.history.created}</p>
+                <p><strong>Last Modified:</strong> ${reservation.history.lastModified}</p>
+                <p><strong>Created By:</strong> ${reservation.history.createdBy}</p>
+                <p><strong>Notes:</strong> ${reservation.history.notes}</p>
+                <p><strong>Change Log:</strong> ${reservation.history.changeLog.join(', ') || 'None'}</p>
+                <h4 class="mt-4 font-semibold">Communication</h4>
+                <p><strong>Confirmation Sent:</strong> ${reservation.communication.confirmationSent ? 'Yes' : 'No'}</p>
+                <p><strong>Reminder Sent:</strong> ${reservation.communication.reminderSent ? 'Yes' : 'No'}</p>
+                <p><strong>Cancellation Sent:</strong> ${reservation.communication.cancellationSent ? 'Yes' : 'No'}</p>
+                <p><strong>Message Log:</strong> ${reservation.communication.messageLog.join(', ') || 'None'}</p>
+                <h4 class="mt-4 font-semibold">Add-ons</h4>
+                <p><strong>Firewood:</strong> ${reservation.addons.firewood ? 'Yes' : 'No'}</p>
+                <p><strong>Propane:</strong> ${reservation.addons.propane ? 'Yes' : 'No'}</p>
+                <p><strong>Laundry:</strong> ${reservation.addons.laundry ? 'Yes' : 'No'}</p>
+                <p><strong>WiFi:</strong> ${reservation.addons.wifi ? 'Yes' : 'No'}</p>
+                <p><strong>Rentals:</strong> ${reservation.addons.rentals.join(', ') || 'None'}</p>
+                <p><strong>Late Check-Out:</strong> ${reservation.addons.lateCheckout ? 'Yes' : 'No'}</p>
+                <p><strong>Dump Station:</strong> ${reservation.addons.dumpStation ? 'Yes' : 'No'}</p>
+                <p><strong>Events:</strong> ${reservation.addons.events.join(', ') || 'None'}</p>
+                <h4 class="mt-4 font-semibold">Extras</h4>
+                <p><strong>Weather Forecast:</strong> ${reservation.extras.weather}</p>
+                <p><strong>Nearby Attractions:</strong> ${reservation.extras.attractions.join(', ')}</p>
+                <p><strong>QR Code:</strong> <a href="${reservation.extras.qrCode}" target="_blank">Self Check-In</a></p>
+                <p><strong>Inspection:</strong> ${reservation.extras.inspection}</p>
+            `;
+            document.getElementById('reservationModal').style.display = 'block';
+        }
+
+        // Close Modal
+        function closeModal() {
+            document.getElementById('reservationModal').style.display = 'none';
+        }
+
+        // Approve Reservation
+        function approveReservation(id) {
+            const reservation = reservationsData.find(r => r.id === id);
+            if (reservation) {
+                reservation.status = 'Confirmed';
+                reservation.communication.confirmationSent = true;
+                reservation.communication.messageLog.push(`Confirmation sent on ${new Date().toISOString()}`);
+                alert(`Reservation ${id} approved!`);
+                filterReservations();
+            }
+        }
+
+        // Cancel Reservation
+        function cancelReservation(id) {
+            const reservation = reservationsData.find(r => r.id === id);
+            if (reservation) {
+                reservation.status = 'Cancelled';
+                reservation.communication.cancellationSent = true;
+                reservation.communication.messageLog.push(`Cancellation sent on ${new Date().toISOString()}`);
+                alert(`Reservation ${id} cancelled!`);
+                filterReservations();
+            }
+        }
+
+        // Export Report as CSV
+        function exportReport() {
+            const headers = [
+                'Reservation ID', 'Status', 'Check-In', 'Check-Out', 'Nights', 'Date Booked', 'Source',
+                'Customer Name', 'Email', 'Phone', 'Address', 'Emergency Contact', 'RV Club', 'Special Requests', 'Returning Guest',
+                'RV Type', 'RV Length', 'Slide-Outs', 'Tow Vehicle', 'License Plate', 'Pets', 'Generator',
+                'Site Number', 'Site Type', 'Hookups', 'Amperage', 'Amenities', 'Site Status', 'Map Link',
+                'Adults', 'Children', 'Pets Count', 'Additional Guests', 'Additional Vehicles',
+                'Total Amount', 'Deposit', 'Balance', 'Payment Status', 'Payment Method', 'Transaction ID', 'Taxes & Fees', 'Discount',
+                'Created', 'Last Modified', 'Created By', 'Notes', 'Change Log',
+                'Confirmation Sent', 'Reminder Sent', 'Cancellation Sent', 'Message Log',
+                'Firewood', 'Propane', 'Laundry', 'WiFi', 'Rentals', 'Late Check-Out', 'Dump Station', 'Events',
+                'Weather', 'Attractions', 'QR Code', 'Inspection'
+            ];
+            const rows = reservationsData.map(r => [
+                r.id, r.status, r.checkIn, r.checkOut, r.nights, r.dateBooked, r.source,
+                r.customer.fullName, r.customer.email, r.customer.phone, r.customer.address, r.customer.emergencyContact,
+                r.customer.rvClub, r.customer.specialRequests, r.customer.returningGuest,
+                r.rv.type, r.rv.length, r.rv.slideOuts, r.rv.towVehicle, r.rv.licensePlate, r.rv.pets, r.rv.generator,
+                r.site.number, r.site.type, r.site.hookups, r.site.amperage, r.site.amenities.join(';'), r.site.status, r.site.mapLink,
+                r.occupants.adults, r.occupants.children, r.occupants.pets, r.occupants.additionalGuests, r.occupants.additionalVehicles,
+                r.payment.total, r.payment.deposit, r.payment.balance, r.payment.status, r.payment.method, r.payment.transactionId || '',
+                r.payment.taxesFees, r.payment.discount,
+                r.history.created, r.history.lastModified, r.history.createdBy, r.history.notes, r.history.changeLog.join(';'),
+                r.communication.confirmationSent, r.communication.reminderSent, r.communication.cancellationSent, r.communication.messageLog.join(';'),
+                r.addons.firewood, r.addons.propane, r.addons.laundry, r.addons.wifi, r.addons.rentals.join(';'), r.addons.lateCheckout,
+                r.addons.dumpStation, r.addons.events.join(';'),
+                r.extras.weather, r.extras.attractions.join(';'), r.extras.qrCode, r.extras.inspection
+            ]);
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'rv_park_reservations.csv';
+            link.click();
+        }
+
+        // Event Listeners for Filters
+        document.getElementById('siteFilter').addEventListener('change', filterReservations);
+        document.getElementById('statusFilter').addEventListener('change', filterReservations);
+        document.getElementById('sourceFilter').addEventListener('change', filterReservations);
+
+        // Initial Load
+        filterReservations();
+    </script>
+</body>
+</html>

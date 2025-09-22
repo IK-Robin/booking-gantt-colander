@@ -179,6 +179,9 @@ jQuery(document).ready(function ($) {
         $headerRow.append('<div class="rvbs-gantt-cell header-cell rv-lot-title">RV Lot Title</div>');
         $headerRow.append('<div class="rvbs-gantt-cell header-cell status">Status</div>');
 
+
+            
+
         data.days.forEach((day) => {
             const $dayHeader = $('<div class="rvbs-gantt-cell header-cell day-header"></div>')
                 .attr('data-day', day.day)

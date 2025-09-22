@@ -599,7 +599,8 @@ class RV_Gantt_Booking_Calendar
                         'status' => $booking->status,
                         'start_day' => $start_day,
                         'end_day' => $end_day,
-                        'is_expired' => $check_out < $today
+                        'is_expired' => $check_out < $today,
+                        'color_hex' => $booking->color_hex
                     ];
                 }
             }
